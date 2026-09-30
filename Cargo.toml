@@ -1,0 +1,20 @@
+[package]
+name = "coogles"
+version = "0.1.0"
+edition = "2024"
+description = "Rust source metrics across Git history with an offline HTML plot"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+gix = { version = "0.87", default-features = false, features = ["max-performance-safe", "sha1"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+ra-ap-rustc_lexer = "0.174"
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syn = { version = "2", features = ["full", "visit"] }
+toml = "0.9"
+# Match the lexer's Unicode 17 tables.
+unicode-ident = "=1.0.24"
