@@ -22,7 +22,7 @@ cargo run --release -- /path/to/repository \
   --output reports/history.json --html reports/history.html
 ```
 
-This samples `HEAD~10`, `HEAD~20`, through `HEAD~300`, giving 30 stops. HEAD itself is excluded. The final requested offset is always included, even when it is not divisible by the step.
+This samples `HEAD`, `HEAD~10`, `HEAD~20`, through `HEAD~300`, giving 31 stops. HEAD and the final requested offset are always included, even when the depth is not divisible by the step.
 
 To specify the exact number of stops instead:
 
@@ -40,9 +40,9 @@ cargo run --release -- /path/to/repository --all --stops 30
 
 `--all` replaces `--commits`, not the traversal mode. It does not include side-branch commits separately. Use `--all --step 10` to sample every ten commits instead.
 
-Stops are evenly distributed using integer commit offsets, with the last stop at the requested depth or the available history boundary. `--stops` and `--step` are mutually exclusive. `--threads N` limits Rayon workers.
+Stops are evenly distributed using integer commit offsets, including HEAD and the requested depth or available history boundary. For example, `--all --stops 25` includes the latest and oldest commits with 23 samples between them. A single requested stop samples HEAD only. `--stops` and `--step` are mutually exclusive. `--threads N` limits Rayon workers.
 
-Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, commit/count tooltips, a data table and a JSON download button. The horizontal axis is commit distance, not elapsed time. Commit dates appear in the tooltips.
+Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, commit/count tooltips, a data table and a JSON download button. Use the X axis selector to switch between commit distance and time. Time mode sorts samples by committer timestamp and spaces them by elapsed time, with UTC gridlines every two weeks. Date labels are thinned for long histories to avoid overlap. This repositions the existing sampled snapshots, it does not collect new fortnightly samples. Commit dates also appear in the tooltips.
 
 History follows the first parent at merges. GitHub's total commit count includes merged branches, so it can exceed this history length. If the requested depth exceeds available history, the CLI warns and redistributes stops over the available history. The JSON records requested and actual depths and whether history was truncated. A shallow boundary is detected and reported separately. If there are fewer available offsets than requested stops, the stop count is reduced. A repository with only HEAD produces one stop at offset zero. Bare repositories are supported. Dirty working-tree changes are not included or modified.
 
@@ -82,6 +82,7 @@ The cache lasts for one invocation. Snapshots still traverse their trees, and pa
 ```sh
 cargo check
 cargo test --bin coogles
+node --test tests/viewer.cjs
 ```
 
 `reports/` is ignored so repository-specific generated output is not accidentally committed.

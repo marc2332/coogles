@@ -9,6 +9,7 @@ body { max-width: 1100px; margin: 32px auto; padding: 0 20px }
 h1 { margin-bottom: 8px } p { color: #aebcd0; line-height: 1.5 }
 #controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0 }
 label { cursor: pointer } input { margin-right: 8px }
+select { margin-left: 8px; padding: 6px; background: #27354b; color: #e8edf5; border: 1px solid #344056; border-radius: 6px }
 svg { width: 100%; background: #191f2b; border-radius: 12px }
 text { fill: #aebcd0; font-size: 13px }
 .grid { stroke: #344056; stroke-width: 1 }
@@ -21,6 +22,7 @@ button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; pad
 <h1>Coogles</h1>
 <p id="summary"></p>
 <div id="controls"></div>
+<p><label>X axis <select id="axis-mode"><option value="commits">Commit distance</option><option value="time">Time (every 2 weeks)</option></select></label></p>
 <svg id="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
 <p id="detail">Hover or focus a point for its commit and counts.</p>
 <button id="download">Download JSON</button>
@@ -57,9 +59,15 @@ function draw() {
   const visible = series.filter(item => enabled.has(item.key))
   const values = snapshots.flatMap(snapshot => visible.map(item => snapshot.metrics[item.key]))
   const maximum = Math.max(1, ...values) * 1.1
-  const oldest = snapshots[0].offset
-  const newest = snapshots[snapshots.length - 1].offset
-  const positionX = snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
+  const timeMode = document.getElementById('axis-mode').value === 'time'
+  const plotted = timeMode ? [...snapshots].sort((left, right) => left.timestamp - right.timestamp) : snapshots
+  const oldest = plotted[0].offset
+  const newest = plotted[plotted.length - 1].offset
+  const earliest = plotted[0].timestamp
+  const latest = plotted[plotted.length - 1].timestamp
+  const timePosition = timestamp => earliest === latest ? 530 : 80 + (timestamp - earliest) / (latest - earliest) * 860
+  const positionX = timeMode ? snapshot => timePosition(snapshot.timestamp) :
+    snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
   const positionY = value => 720 - value / maximum * 680
   for (let index = 0; index <= 8; index++) {
     const value = maximum * index / 8
@@ -67,17 +75,41 @@ function draw() {
     svg.append(element('line', { x1: 80, x2: 940, y1: height, y2: height, class: 'grid' }))
     svg.append(element('text', { x: 70, y: height + 4, 'text-anchor': 'end' }, Math.round(value).toLocaleString()))
   }
-  const labelEvery = Math.max(1, Math.ceil(snapshots.length / 10))
-  snapshots.forEach((snapshot, index) => {
-    if (index % labelEvery === 0 || index === snapshots.length - 1) {
-      svg.append(element('text', { x: positionX(snapshot), y: 749, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+  if (timeMode) {
+    const interval = 14 * 24 * 60 * 60
+    const monday = Date.UTC(1970, 0, 5) / 1000
+    const firstTick = monday + Math.ceil((earliest - monday) / interval) * interval
+    const ticks = []
+    for (let timestamp = firstTick; timestamp <= latest; timestamp += interval) ticks.push(timestamp)
+    const labelEvery = Math.max(1, Math.ceil(ticks.length / 7))
+    ticks.forEach((timestamp, index) => {
+      const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
+      const grid = element('line', { x1: timePosition(timestamp), x2: timePosition(timestamp), y1: 40, y2: 720, class: 'grid', 'stroke-opacity': 0.4 })
+      grid.append(element('title', {}, date))
+      svg.append(grid)
+      if (ticks.length >= 2 && index % labelEvery === 0) {
+        svg.append(element('text', { x: timePosition(timestamp), y: 749, 'text-anchor': 'middle' }, date))
+      }
+    })
+    if (ticks.length < 2) {
+      for (const timestamp of new Set([earliest, latest])) {
+        svg.append(element('text', { x: timePosition(timestamp), y: 749, 'text-anchor': 'middle' }, new Date(timestamp * 1000).toISOString().slice(0, 10)))
+      }
     }
-  })
-  svg.append(element('text', { x: 510, y: 782, 'text-anchor': 'middle' }, 'First-parent commit offset from HEAD · oldest to newest'))
+  } else {
+    const labelEvery = Math.max(1, Math.ceil(plotted.length / 10))
+    plotted.forEach((snapshot, index) => {
+      if (index % labelEvery === 0 || index === plotted.length - 1) {
+        svg.append(element('text', { x: positionX(snapshot), y: 749, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+      }
+    })
+  }
+  const axisTitle = timeMode ? 'Commit date (UTC) · grid every 2 weeks · labels thinned for long histories' : 'First-parent commit offset from HEAD · oldest to newest'
+  svg.append(element('text', { x: 510, y: 782, 'text-anchor': 'middle' }, axisTitle))
   for (const item of visible) {
-    const points = snapshots.map(snapshot => `${positionX(snapshot)},${positionY(snapshot.metrics[item.key])}`).join(' ')
+    const points = plotted.map(snapshot => `${positionX(snapshot)},${positionY(snapshot.metrics[item.key])}`).join(' ')
     svg.append(element('polyline', { points, fill: 'none', stroke: item.color, 'stroke-width': 2.5 }))
-    for (const snapshot of snapshots) {
+    for (const snapshot of plotted) {
       const circle = element('circle', { cx: positionX(snapshot), cy: positionY(snapshot.metrics[item.key]), r: 5, fill: item.color, tabindex: 0, 'aria-label': describe(snapshot) })
       circle.append(element('title', {}, describe(snapshot)))
       const show = () => { document.getElementById('detail').textContent = describe(snapshot) }
@@ -118,6 +150,7 @@ for (const snapshot of snapshots) {
   }
   document.getElementById('rows').append(row)
 }
+document.getElementById('axis-mode').addEventListener('change', draw)
 document.getElementById('download').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }))
   const link = document.createElement('a')

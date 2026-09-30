@@ -30,10 +30,10 @@ struct Arguments {
     /// Scan the entire available first-parent history
     #[arg(long)]
     all: bool,
-    /// Sample every N commits, also including the requested final offset
+    /// Sample from HEAD every N commits, also including the final offset
     #[arg(long, default_value_t = 10, conflicts_with = "stops")]
     step: usize,
-    /// Sample exactly N evenly distributed stops, excluding HEAD
+    /// Sample N evenly distributed stops including HEAD and the oldest commit
     #[arg(long)]
     stops: Option<usize>,
     /// Rayon worker count, defaults to available parallelism
@@ -87,18 +87,21 @@ fn offsets(commits: usize, step: usize, stops: Option<usize>) -> Result<Vec<usiz
     ensure!(commits > 0, "--commits must be positive");
     if let Some(stops) = stops {
         ensure!(
-            stops > 0 && stops <= commits,
-            "--stops must be between 1 and --commits"
+            stops > 0 && stops <= commits.saturating_add(1),
+            "--stops must be between 1 and the number of available commits"
         );
-        return (1..=stops)
+        if stops == 1 {
+            return Ok(vec![0]);
+        }
+        return (0..stops)
             .map(|index| {
-                let offset = (index as u128 * commits as u128) / stops as u128;
+                let offset = (index as u128 * commits as u128) / (stops - 1) as u128;
                 Ok(offset as usize)
             })
             .collect();
     }
     ensure!(step > 0, "--step must be positive");
-    let mut offsets: Vec<_> = (step..=commits).step_by(step).collect();
+    let mut offsets: Vec<_> = (0..=commits).step_by(step).collect();
     if offsets.last() != Some(&commits) {
         offsets.push(commits);
     }
@@ -109,7 +112,11 @@ fn history_offsets(commits: usize, step: usize, stops: Option<usize>) -> Result<
     if commits == 0 {
         return Ok(vec![0]);
     }
-    offsets(commits, step, stops.map(|stops| stops.min(commits)))
+    offsets(
+        commits,
+        step,
+        stops.map(|stops| stops.min(commits.saturating_add(1))),
+    )
 }
 
 fn collect_history(
@@ -491,10 +498,12 @@ mod tests {
     fn samples_requested_depth_and_stop_count() {
         assert_eq!(
             offsets(100, 10, Some(10)).unwrap(),
-            (10..=100).step_by(10).collect::<Vec<_>>()
+            vec![0, 11, 22, 33, 44, 55, 66, 77, 88, 100]
         );
         assert_eq!(offsets(101, 10, Some(10)).unwrap().last(), Some(&101));
-        assert_eq!(offsets(25, 10, None).unwrap(), vec![10, 20, 25]);
+        assert_eq!(offsets(25, 10, None).unwrap(), vec![0, 10, 20, 25]);
+        assert_eq!(offsets(100, 10, Some(1)).unwrap(), vec![0]);
+        assert_eq!(offsets(100, 10, Some(2)).unwrap(), vec![0, 100]);
         assert!(offsets(0, 10, None).is_err());
         assert!(offsets(100, 0, None).is_err());
         assert!(offsets(5, 10, Some(10)).is_err());
@@ -511,8 +520,25 @@ mod tests {
             history_offsets(2238, 10, Some(10)).unwrap().last(),
             Some(&2238)
         );
-        assert_eq!(history_offsets(3, 10, Some(10)).unwrap(), vec![1, 2, 3]);
+        assert_eq!(history_offsets(3, 10, Some(10)).unwrap(), vec![0, 1, 2, 3]);
         assert_eq!(history_offsets(0, 10, Some(10)).unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn all_history_sampling_includes_both_endpoints_without_duplicate_stops() {
+        let samples = history_offsets(2961, 10, Some(25)).unwrap();
+        assert_eq!(samples.len(), 25);
+        assert_eq!(samples.first(), Some(&0));
+        assert_eq!(samples.last(), Some(&2961));
+        for depth in 1..=100 {
+            for stops in 2..=depth + 1 {
+                let samples = history_offsets(depth, 10, Some(stops)).unwrap();
+                assert_eq!(samples.len(), stops);
+                assert_eq!(samples.first(), Some(&0));
+                assert_eq!(samples.last(), Some(&depth));
+                assert!(samples.windows(2).all(|pair| pair[0] < pair[1]));
+            }
+        }
     }
 
     #[test]
