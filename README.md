@@ -2,6 +2,18 @@
 
 A Rust CLI that measures Rust source across Git history and writes JSON plus a self-contained HTML plot. No checkout, external Git process, network access or web server is needed during analysis.
 
+## Install
+
+```sh
+cargo install --git https://github.com/marc2332/coogles --locked
+```
+
+Then run:
+
+```sh
+coogles /path/to/repository --all --stops 25
+```
+
 ## Run
 
 ```sh
