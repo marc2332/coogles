@@ -4,6 +4,7 @@ use serde::Serialize;
 pub struct Metrics {
     pub rust_files: u64,
     pub code_loc: u64,
+    pub source_code_loc: u64,
     pub test_code_loc: u64,
     pub comment_loc: u64,
     pub doc_loc: u64,

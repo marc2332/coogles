@@ -289,13 +289,18 @@ fn aggregate(
         };
         metrics.rust_files += 1;
         metrics.code_loc += analysis.code_loc;
-        metrics.test_code_loc += if test_files.contains(&file.path) {
+        let is_test_file = test_files.contains(&file.path);
+        let is_example_file = example_files.contains(&file.path);
+        metrics.test_code_loc += if is_test_file {
             analysis.code_loc
         } else {
             analysis.inline_test_loc
         };
-        if example_files.contains(&file.path) {
+        if is_example_file {
             metrics.example_code_loc += analysis.code_loc;
+        }
+        if !is_test_file && !is_example_file {
+            metrics.source_code_loc += analysis.code_loc - analysis.inline_test_loc;
         }
         metrics.comment_loc += analysis.comment_loc;
         metrics.inner_doc_loc += analysis.inner_doc_loc;
@@ -445,7 +450,7 @@ fn main() -> Result<()> {
             offsets,
             traversal: "first-parent",
         },
-        definitions: "Physical nonblank code lines, excluding comments. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
+        definitions: "Physical nonblank code lines, excluding comments. Source code excludes test code and example code, with overlapping categories excluded only once. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
         unique_rust_blobs: analyses.len(),
         analyzed_bytes,
         elapsed_seconds: started.elapsed().as_secs_f64(),
@@ -523,6 +528,7 @@ mod tests {
             ("demo/start.rs", "mod helpers;\nfn main() {}\n"),
             ("demo/start/helpers.rs", "fn example_helper() {}\n"),
             ("qa/check.rs", "fn custom_test() {}\n"),
+            ("examples/shared.rs", "#[test]\nfn example_test() {}\n"),
         ];
         let mut analyses = HashMap::new();
         let mut files = Vec::new();
@@ -551,9 +557,11 @@ mod tests {
             files,
         };
         let snapshot = aggregate(&stop, &analyses, &manifests).unwrap();
-        assert_eq!(snapshot.metrics.test_code_loc, 7);
-        assert_eq!(snapshot.metrics.example_code_loc, 3);
-        assert_eq!(snapshot.metrics.rust_files, 7);
+        assert_eq!(snapshot.metrics.test_code_loc, 9);
+        assert_eq!(snapshot.metrics.example_code_loc, 5);
+        assert_eq!(snapshot.metrics.source_code_loc, 2);
+        assert_eq!(snapshot.metrics.code_loc, 14);
+        assert_eq!(snapshot.metrics.rust_files, 8);
         assert!(snapshot.parse_errors.is_empty());
     }
 

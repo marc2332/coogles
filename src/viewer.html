@@ -25,7 +25,7 @@ button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; pad
 <p id="detail">Hover or focus a point for its commit and counts.</p>
 <button id="download">Download JSON</button>
 <p id="warning"></p>
-<div class="scroll"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="scroll"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Source code</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody id="rows"></tbody></table></div>
 <details><summary>Counting rules</summary><p id="definitions"></p></details>
 <script type="application/json" id="report">__REPORT_JSON__</script>
 <script>
@@ -33,6 +33,7 @@ const report = JSON.parse(document.getElementById('report').textContent)
 const snapshots = [...report.snapshots].reverse()
 const series = [
   { key: 'code_loc', name: 'Code (total)', color: '#ff879c' },
+  { key: 'source_code_loc', name: 'Source code', color: '#f0eb83' },
   { key: 'test_code_loc', name: 'Tests', color: '#69c7ff' },
   { key: 'comment_loc', name: '// comments', color: '#ffc56a' },
   { key: 'doc_loc', name: 'Docs (//! + ///)', color: '#ba9aff' },

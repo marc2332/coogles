@@ -42,7 +42,7 @@ cargo run --release -- /path/to/repository --all --stops 30
 
 Stops are evenly distributed using integer commit offsets, with the last stop at the requested depth or the available history boundary. `--stops` and `--step` are mutually exclusive. `--threads N` limits Rayon workers.
 
-Open the generated HTML directly in your browser. It embeds the JSON, provides five selectable curves, commit/count tooltips, a data table and a JSON download button. The horizontal axis is commit distance, not elapsed time. Commit dates appear in the tooltips.
+Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, commit/count tooltips, a data table and a JSON download button. The horizontal axis is commit distance, not elapsed time. Commit dates appear in the tooltips.
 
 History follows the first parent at merges. GitHub's total commit count includes merged branches, so it can exceed this history length. If the requested depth exceeds available history, the CLI warns and redistributes stops over the available history. The JSON records requested and actual depths and whether history was truncated. A shallow boundary is detected and reported separately. If there are fewer available offsets than requested stops, the stop count is reduced. A repository with only HEAD produces one stop at offset zero. Bare repositories are supported. Dirty working-tree changes are not included or modified.
 
@@ -51,6 +51,7 @@ History follows the first parent at merges. GitHub's total commit count includes
 All tracked regular `.rs` files in each snapshot are included, including vendored and generated source if committed. Submodules and symbolic links are not followed.
 
 - `code_loc`: total physical nonblank lines containing Rust tokens other than comments, including tests and examples. Attributes and brace-only lines count. A line containing both code and a trailing comment counts in both categories.
+- `source_code_loc`: total code excluding test files, example files and inline test code inside production files. Overlapping test/example code is excluded only once.
 - `test_code_loc`: code in paths with a `tests/` component, configured Cargo test targets, `#[cfg(test)]` items and test functions. Recognizes attributes whose final segment is `test` or `rstest`, including `#[tokio::test]`. Test-only external modules and their descendants are included.
 - `example_code_loc`: code in paths with an `examples/` component or configured Cargo example targets and their external module descendants.
 - `comment_loc`: ordinary `//` comment lines, excluding documentation. `////` is an ordinary comment. Trailing comments count.
