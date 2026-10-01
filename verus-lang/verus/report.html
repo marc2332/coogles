@@ -1,0 +1,2743 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coogles · Rust history</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #11151d; color: #e8edf5 }
+html { scroll-behavior: smooth }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { max-width: 1100px; margin: 32px auto; padding: 0 20px }
+h1 { margin-bottom: 8px } h2 { overflow-wrap: anywhere } p { color: #aebcd0; line-height: 1.5 }
+a { color: #69c7ff }
+#repository-links { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-left: 20px }
+section { margin: 40px 0 64px; scroll-margin-top: 20px }
+section.compact { margin: 12px 0 }
+section.compact h2 { font-size: 18px; margin: 0 0 8px }
+section.compact .detail, section.compact [data-element="warning"] { display: none }
+[data-element="warning"]:empty { display: none }
+.controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0 }
+.options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px }
+#date-range { margin: 16px 0; max-width: 480px }
+#date-presets { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px }
+#date-presets button { flex: 0 0 auto; white-space: nowrap; padding: 6px 8px; font-size: 12px }
+.range-values { display: flex; justify-content: space-between; gap: 12px; font-size: 13px }
+.range-values span { display: block; margin-top: 4px }
+.range-slider { position: relative; height: 32px; margin-top: 8px }
+.range-track, #range-selected { position: absolute; top: 14px; height: 4px; border-radius: 4px }
+.range-track { left: 0; width: 100%; background: #344056 }
+#range-selected { background: #69c7ff }
+.range-slider input { position: absolute; top: 0; left: 0; width: 100%; height: 32px; margin: 0; background: transparent; appearance: none; pointer-events: none }
+.range-slider input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-track { background: transparent }
+.range-slider input:focus-visible { outline: 2px solid #69c7ff; outline-offset: 4px }
+label { cursor: pointer } input { margin-right: 8px }
+select { margin-left: 8px; padding: 6px; background: #27354b; color: #e8edf5; border: 1px solid #344056; border-radius: 6px }
+svg { width: 100%; background: #191f2b; border-radius: 12px }
+text { fill: #aebcd0; font-size: 13px }
+.grid { stroke: #344056; stroke-width: 1 }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+th, td { padding: 10px; border-bottom: 1px solid #344056; text-align: right }
+th:first-child, td:first-child { text-align: left }
+.scroll { overflow-x: auto } .detail { min-height: 1.5em }
+button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer }
+@media (min-width: 1100px) {
+  :root { --sidebar-width: clamp(224px, calc((100vw - 1000px) / 2), 672px) }
+  body { margin: 32px auto; width: calc(100% - 2 * var(--sidebar-width) - 80px); max-width: 1100px; box-sizing: border-box }
+  #plot-options { position: fixed; top: 32px; left: 20px; width: var(--sidebar-width); max-height: calc(100vh - 64px); overflow-y: auto; box-sizing: border-box; padding: 16px; background: #191f2b; border: 1px solid #344056; border-radius: 12px; font-size: 14px }
+  #plot-options .controls { flex-direction: column; gap: 14px; margin: 0 0 24px }
+  #plot-options .options { flex-direction: column; align-items: stretch; gap: 14px }
+  #plot-options select { display: block; width: 100%; margin: 8px 0 0 }
+  #plot-options #download { width: 100% }
+  #plot-options #date-range { max-width: none }
+}
+</style>
+<h1 id="top">Coogles</h1>
+<nav aria-label="Repositories"><ul id="repository-links"></ul></nav>
+<aside id="plot-options" aria-label="Plot controls">
+<div class="controls" id="controls"></div>
+<div class="options"><label>X axis <select id="axis-mode"><option value="commits">Commit distance</option><option value="time-1week">Time (every week)</option><option value="time">Time (every 2 weeks)</option><option value="time-4weeks">Time (every 4 weeks)</option></select></label> <label><input id="percentage-mode" type="checkbox">Percentage mode</label> <label><input id="hide-tables" type="checkbox">Hide commit tables</label> <label><input id="compact-mode" type="checkbox">Compact</label> <label><input id="hide-points" type="checkbox">Hide points</label></div>
+<div id="date-range">
+<div class="range-values"><label for="start-month">From<span id="start-month-label"></span></label><label for="end-month">To<span id="end-month-label"></span></label></div>
+<div class="range-slider"><div class="range-track"></div><div id="range-selected"></div><input id="start-month" type="range" min="0" max="0" value="0" step="1"><input id="end-month" type="range" min="0" max="0" value="0" step="1"></div>
+<div id="date-presets"></div>
+</div>
+<button id="download">Download JSON</button>
+</aside>
+<main id="repositories"></main>
+<template id="repository-template">
+<h2><a data-element="heading"></a></h2>
+<p data-element="summary"></p>
+<svg data-element="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
+<p class="detail" data-element="detail" aria-live="polite"></p>
+<p data-element="warning"></p>
+<div class="scroll" data-element="table"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Source code</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody data-element="rows"></tbody></table></div>
+</template>
+<script type="application/json" id="report">{
+  "schema_version": 1,
+  "repository": "/home/marc/Projects/coogles/trunk/data/verus-lang/verus",
+  "head": "d85f75780de687461a30e7771985c4a3e9ea0e58",
+  "configuration": {
+    "commits": 3094,
+    "requested_commits": null,
+    "all": true,
+    "history_truncated": false,
+    "shallow_boundary": false,
+    "offsets": [
+      0,
+      31,
+      62,
+      93,
+      125,
+      156,
+      187,
+      218,
+      250,
+      281,
+      312,
+      343,
+      375,
+      406,
+      437,
+      468,
+      500,
+      531,
+      562,
+      593,
+      625,
+      656,
+      687,
+      718,
+      750,
+      781,
+      812,
+      843,
+      875,
+      906,
+      937,
+      968,
+      1000,
+      1031,
+      1062,
+      1093,
+      1125,
+      1156,
+      1187,
+      1218,
+      1250,
+      1281,
+      1312,
+      1343,
+      1375,
+      1406,
+      1437,
+      1468,
+      1500,
+      1531,
+      1562,
+      1593,
+      1625,
+      1656,
+      1687,
+      1718,
+      1750,
+      1781,
+      1812,
+      1843,
+      1875,
+      1906,
+      1937,
+      1968,
+      2000,
+      2031,
+      2062,
+      2093,
+      2125,
+      2156,
+      2187,
+      2218,
+      2250,
+      2281,
+      2312,
+      2343,
+      2375,
+      2406,
+      2437,
+      2468,
+      2500,
+      2531,
+      2562,
+      2593,
+      2625,
+      2656,
+      2687,
+      2718,
+      2750,
+      2781,
+      2812,
+      2843,
+      2875,
+      2906,
+      2937,
+      2968,
+      3000,
+      3031,
+      3062,
+      3094
+    ],
+    "traversal": "first-parent",
+    "includes_head": true
+  },
+  "definitions": "Physical nonblank code lines, excluding comments. Source code excludes test code and example code, with overlapping categories excluded only once. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
+  "unique_rust_blobs": 9805,
+  "analyzed_bytes": 296583985,
+  "elapsed_seconds": 66.816579636,
+  "snapshots": [
+    {
+      "commit": "d85f75780de687461a30e7771985c4a3e9ea0e58",
+      "offset": 0,
+      "timestamp": 1790717229,
+      "metrics": {
+        "rust_files": 971,
+        "code_loc": 546669,
+        "source_code_loc": 403043,
+        "test_code_loc": 119254,
+        "comment_loc": 22544,
+        "doc_loc": 21719,
+        "inner_doc_loc": 2307,
+        "outer_doc_loc": 19412,
+        "block_comment_loc": 2279,
+        "block_doc_loc": 1132,
+        "example_code_loc": 24372
+      },
+      "parse_errors": [
+        "source/rustc_hir_analysis/src/collect/resolve_bound_vars.rs: unexpected token, expected `;` at 2394:13",
+        "source/rustc_hir_analysis/src/hir_wf_check.rs: expected `,` at 54:46"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ba013a4c9d7a95e16643f25205177fbf20018dc3",
+      "offset": 31,
+      "timestamp": 1789512574,
+      "metrics": {
+        "rust_files": 967,
+        "code_loc": 545165,
+        "source_code_loc": 402038,
+        "test_code_loc": 119355,
+        "comment_loc": 22507,
+        "doc_loc": 21688,
+        "inner_doc_loc": 2307,
+        "outer_doc_loc": 19381,
+        "block_comment_loc": 2266,
+        "block_doc_loc": 1132,
+        "example_code_loc": 23772
+      },
+      "parse_errors": [
+        "source/rustc_hir_analysis/src/collect/resolve_bound_vars.rs: unexpected token, expected `;` at 2394:13",
+        "source/rustc_hir_analysis/src/hir_wf_check.rs: expected `,` at 54:46"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b6e71b4165c8a4521ab3e039bec647d655a6d01f",
+      "offset": 62,
+      "timestamp": 1788753530,
+      "metrics": {
+        "rust_files": 912,
+        "code_loc": 511703,
+        "source_code_loc": 370387,
+        "test_code_loc": 117896,
+        "comment_loc": 18846,
+        "doc_loc": 19945,
+        "inner_doc_loc": 2147,
+        "outer_doc_loc": 17798,
+        "block_comment_loc": 2228,
+        "block_doc_loc": 1046,
+        "example_code_loc": 23420
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "908ebe1d4763d55f401856bc950c2d3f3e967827",
+      "offset": 93,
+      "timestamp": 1787939436,
+      "metrics": {
+        "rust_files": 910,
+        "code_loc": 510468,
+        "source_code_loc": 369693,
+        "test_code_loc": 117355,
+        "comment_loc": 18804,
+        "doc_loc": 19898,
+        "inner_doc_loc": 2147,
+        "outer_doc_loc": 17751,
+        "block_comment_loc": 2227,
+        "block_doc_loc": 1046,
+        "example_code_loc": 23420
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7d4628a8543d3e51e6e314c52032c9bab43f0f53",
+      "offset": 125,
+      "timestamp": 1786765024,
+      "metrics": {
+        "rust_files": 908,
+        "code_loc": 509067,
+        "source_code_loc": 368940,
+        "test_code_loc": 116691,
+        "comment_loc": 18717,
+        "doc_loc": 19885,
+        "inner_doc_loc": 2147,
+        "outer_doc_loc": 17738,
+        "block_comment_loc": 2227,
+        "block_doc_loc": 1046,
+        "example_code_loc": 23436
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d4b540ed3664d8f54aaa880af33c47e8bac45924",
+      "offset": 156,
+      "timestamp": 1785790210,
+      "metrics": {
+        "rust_files": 888,
+        "code_loc": 507063,
+        "source_code_loc": 368056,
+        "test_code_loc": 115571,
+        "comment_loc": 18660,
+        "doc_loc": 19829,
+        "inner_doc_loc": 2146,
+        "outer_doc_loc": 17683,
+        "block_comment_loc": 2227,
+        "block_doc_loc": 1046,
+        "example_code_loc": 23436
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d64f7c416688cad31753a87af92ad69f7f4dcdc1",
+      "offset": 187,
+      "timestamp": 1784964650,
+      "metrics": {
+        "rust_files": 885,
+        "code_loc": 506691,
+        "source_code_loc": 368265,
+        "test_code_loc": 115103,
+        "comment_loc": 18662,
+        "doc_loc": 19804,
+        "inner_doc_loc": 2146,
+        "outer_doc_loc": 17658,
+        "block_comment_loc": 2225,
+        "block_doc_loc": 1046,
+        "example_code_loc": 23323
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "525e4e77ee735f296b2bc02319c694ab0c7edbcc",
+      "offset": 218,
+      "timestamp": 1783960871,
+      "metrics": {
+        "rust_files": 871,
+        "code_loc": 496519,
+        "source_code_loc": 363098,
+        "test_code_loc": 112852,
+        "comment_loc": 18145,
+        "doc_loc": 19470,
+        "inner_doc_loc": 2072,
+        "outer_doc_loc": 17398,
+        "block_comment_loc": 2168,
+        "block_doc_loc": 992,
+        "example_code_loc": 20569
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7da0a5fca1abbbda9b91841abe10b9a2a163aba4",
+      "offset": 250,
+      "timestamp": 1782523766,
+      "metrics": {
+        "rust_files": 868,
+        "code_loc": 493160,
+        "source_code_loc": 361199,
+        "test_code_loc": 111459,
+        "comment_loc": 18039,
+        "doc_loc": 19372,
+        "inner_doc_loc": 2072,
+        "outer_doc_loc": 17300,
+        "block_comment_loc": 2163,
+        "block_doc_loc": 992,
+        "example_code_loc": 20502
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f40d3ad8748bc55213f2fe98ddd83a25b0ff4704",
+      "offset": 281,
+      "timestamp": 1781268904,
+      "metrics": {
+        "rust_files": 860,
+        "code_loc": 490664,
+        "source_code_loc": 359234,
+        "test_code_loc": 111050,
+        "comment_loc": 17944,
+        "doc_loc": 18682,
+        "inner_doc_loc": 1932,
+        "outer_doc_loc": 16750,
+        "block_comment_loc": 2162,
+        "block_doc_loc": 992,
+        "example_code_loc": 20380
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ebb7c82dbd014c038ca18f45dbd644b1fd57b466",
+      "offset": 312,
+      "timestamp": 1779845059,
+      "metrics": {
+        "rust_files": 855,
+        "code_loc": 485046,
+        "source_code_loc": 355748,
+        "test_code_loc": 108926,
+        "comment_loc": 17730,
+        "doc_loc": 17878,
+        "inner_doc_loc": 1932,
+        "outer_doc_loc": 15946,
+        "block_comment_loc": 2141,
+        "block_doc_loc": 969,
+        "example_code_loc": 20372
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e31e522b149631c344dc131086fc525b2f0773af",
+      "offset": 343,
+      "timestamp": 1778708787,
+      "metrics": {
+        "rust_files": 854,
+        "code_loc": 483474,
+        "source_code_loc": 355018,
+        "test_code_loc": 108398,
+        "comment_loc": 17640,
+        "doc_loc": 17871,
+        "inner_doc_loc": 1932,
+        "outer_doc_loc": 15939,
+        "block_comment_loc": 2122,
+        "block_doc_loc": 834,
+        "example_code_loc": 20058
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "764448fe72450f8a06574c6e7b0c6763f03a10f7",
+      "offset": 375,
+      "timestamp": 1777805070,
+      "metrics": {
+        "rust_files": 850,
+        "code_loc": 482152,
+        "source_code_loc": 354837,
+        "test_code_loc": 107292,
+        "comment_loc": 17474,
+        "doc_loc": 17837,
+        "inner_doc_loc": 1932,
+        "outer_doc_loc": 15905,
+        "block_comment_loc": 2122,
+        "block_doc_loc": 825,
+        "example_code_loc": 20023
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cbd276d0ce13abd4219406c034cd95eee8076d2a",
+      "offset": 406,
+      "timestamp": 1776880937,
+      "metrics": {
+        "rust_files": 841,
+        "code_loc": 481231,
+        "source_code_loc": 354455,
+        "test_code_loc": 106774,
+        "comment_loc": 17430,
+        "doc_loc": 17560,
+        "inner_doc_loc": 1931,
+        "outer_doc_loc": 15629,
+        "block_comment_loc": 2137,
+        "block_doc_loc": 848,
+        "example_code_loc": 20002
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bf0099e9e26481219f6ae710b19f8e0797ecdbe8",
+      "offset": 437,
+      "timestamp": 1776417222,
+      "metrics": {
+        "rust_files": 838,
+        "code_loc": 479676,
+        "source_code_loc": 354160,
+        "test_code_loc": 105514,
+        "comment_loc": 17356,
+        "doc_loc": 17571,
+        "inner_doc_loc": 1931,
+        "outer_doc_loc": 15640,
+        "block_comment_loc": 2137,
+        "block_doc_loc": 803,
+        "example_code_loc": 20002
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "dfff692ecd1965ba3ee0fb2c53cf1ba5350c55fc",
+      "offset": 468,
+      "timestamp": 1775584293,
+      "metrics": {
+        "rust_files": 834,
+        "code_loc": 477786,
+        "source_code_loc": 353145,
+        "test_code_loc": 104649,
+        "comment_loc": 17247,
+        "doc_loc": 17533,
+        "inner_doc_loc": 1931,
+        "outer_doc_loc": 15602,
+        "block_comment_loc": 2125,
+        "block_doc_loc": 805,
+        "example_code_loc": 19992
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c78aa4958372cfa69e6cb38fd31997c881473271",
+      "offset": 500,
+      "timestamp": 1774631030,
+      "metrics": {
+        "rust_files": 834,
+        "code_loc": 475110,
+        "source_code_loc": 352003,
+        "test_code_loc": 103115,
+        "comment_loc": 17157,
+        "doc_loc": 17503,
+        "inner_doc_loc": 1931,
+        "outer_doc_loc": 15572,
+        "block_comment_loc": 2135,
+        "block_doc_loc": 805,
+        "example_code_loc": 19992
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bc6236792bd9adf635ecd847485d350f04647d4a",
+      "offset": 531,
+      "timestamp": 1774070511,
+      "metrics": {
+        "rust_files": 830,
+        "code_loc": 473252,
+        "source_code_loc": 350659,
+        "test_code_loc": 102601,
+        "comment_loc": 17079,
+        "doc_loc": 17446,
+        "inner_doc_loc": 1931,
+        "outer_doc_loc": 15515,
+        "block_comment_loc": 2135,
+        "block_doc_loc": 805,
+        "example_code_loc": 19992
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b4e94d8986d90909f5f9cce8b9b86c462fde444e",
+      "offset": 562,
+      "timestamp": 1751892600,
+      "metrics": {
+        "rust_files": 666,
+        "code_loc": 394255,
+        "source_code_loc": 300627,
+        "test_code_loc": 74102,
+        "comment_loc": 11901,
+        "doc_loc": 12482,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 10946,
+        "block_comment_loc": 2067,
+        "block_doc_loc": 187,
+        "example_code_loc": 19526
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5c2475942e1a9fd140f0a9fec52b32e3a1f91fc3",
+      "offset": 593,
+      "timestamp": 1750812083,
+      "metrics": {
+        "rust_files": 665,
+        "code_loc": 391572,
+        "source_code_loc": 298789,
+        "test_code_loc": 73306,
+        "comment_loc": 11823,
+        "doc_loc": 12231,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 10695,
+        "block_comment_loc": 2016,
+        "block_doc_loc": 187,
+        "example_code_loc": 19477
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "654650bdcec8f118ba8ebafd0c90af89701beff5",
+      "offset": 625,
+      "timestamp": 1749672226,
+      "metrics": {
+        "rust_files": 659,
+        "code_loc": 389226,
+        "source_code_loc": 297014,
+        "test_code_loc": 72843,
+        "comment_loc": 11748,
+        "doc_loc": 11441,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9905,
+        "block_comment_loc": 2016,
+        "block_doc_loc": 157,
+        "example_code_loc": 19369
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3b6b805ac86cd6640d59468341055c7fa14cff07",
+      "offset": 656,
+      "timestamp": 1748452298,
+      "metrics": {
+        "rust_files": 653,
+        "code_loc": 387303,
+        "source_code_loc": 296000,
+        "test_code_loc": 72146,
+        "comment_loc": 11694,
+        "doc_loc": 11374,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9838,
+        "block_comment_loc": 1995,
+        "block_doc_loc": 157,
+        "example_code_loc": 19157
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f77b9376200bf4ba3fd02cda5ffc9ecf67a68e1d",
+      "offset": 687,
+      "timestamp": 1747241852,
+      "metrics": {
+        "rust_files": 653,
+        "code_loc": 386658,
+        "source_code_loc": 312527,
+        "test_code_loc": 71943,
+        "comment_loc": 11654,
+        "doc_loc": 11354,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9818,
+        "block_comment_loc": 2007,
+        "block_doc_loc": 157,
+        "example_code_loc": 2188
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c540566f2d7e2a1b9b222d2730b576915a6b3ae3",
+      "offset": 718,
+      "timestamp": 1745605042,
+      "metrics": {
+        "rust_files": 651,
+        "code_loc": 384667,
+        "source_code_loc": 311398,
+        "test_code_loc": 71081,
+        "comment_loc": 11565,
+        "doc_loc": 11326,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9790,
+        "block_comment_loc": 2007,
+        "block_doc_loc": 157,
+        "example_code_loc": 2188
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "11134efbecfe007d20ef1e59ea202cc039b1fd27",
+      "offset": 750,
+      "timestamp": 1744153193,
+      "metrics": {
+        "rust_files": 648,
+        "code_loc": 379417,
+        "source_code_loc": 308376,
+        "test_code_loc": 68853,
+        "comment_loc": 11330,
+        "doc_loc": 11238,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9702,
+        "block_comment_loc": 2001,
+        "block_doc_loc": 91,
+        "example_code_loc": 2188
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "abaf02942126fa607b7461303ebfac44c4bc1d9a",
+      "offset": 781,
+      "timestamp": 1743116882,
+      "metrics": {
+        "rust_files": 648,
+        "code_loc": 378381,
+        "source_code_loc": 307920,
+        "test_code_loc": 68273,
+        "comment_loc": 11322,
+        "doc_loc": 11240,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9704,
+        "block_comment_loc": 2001,
+        "block_doc_loc": 91,
+        "example_code_loc": 2188
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "71dfb82db904e0851d326a99ab06dc6a748b05d0",
+      "offset": 812,
+      "timestamp": 1742461421,
+      "metrics": {
+        "rust_files": 644,
+        "code_loc": 376871,
+        "source_code_loc": 307099,
+        "test_code_loc": 67584,
+        "comment_loc": 11294,
+        "doc_loc": 11228,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9692,
+        "block_comment_loc": 2001,
+        "block_doc_loc": 91,
+        "example_code_loc": 2188
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "807eeff4f502764e0c9456f1b6c4a188685bdd01",
+      "offset": 843,
+      "timestamp": 1741078064,
+      "metrics": {
+        "rust_files": 633,
+        "code_loc": 374530,
+        "source_code_loc": 305002,
+        "test_code_loc": 67361,
+        "comment_loc": 11231,
+        "doc_loc": 11193,
+        "inner_doc_loc": 1536,
+        "outer_doc_loc": 9657,
+        "block_comment_loc": 2000,
+        "block_doc_loc": 90,
+        "example_code_loc": 2167
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cfdc8ebb3ba442b47c9ef60bdcfdbc31619c0df5",
+      "offset": 875,
+      "timestamp": 1739999997,
+      "metrics": {
+        "rust_files": 630,
+        "code_loc": 373125,
+        "source_code_loc": 303958,
+        "test_code_loc": 67000,
+        "comment_loc": 11174,
+        "doc_loc": 11074,
+        "inner_doc_loc": 1512,
+        "outer_doc_loc": 9562,
+        "block_comment_loc": 2039,
+        "block_doc_loc": 90,
+        "example_code_loc": 2167
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 66:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "59c71d82f7f7a10f401fb8170d7e5b84b0dc1941",
+      "offset": 906,
+      "timestamp": 1738298217,
+      "metrics": {
+        "rust_files": 611,
+        "code_loc": 361669,
+        "source_code_loc": 295620,
+        "test_code_loc": 63900,
+        "comment_loc": 10527,
+        "doc_loc": 10620,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9086,
+        "block_comment_loc": 1991,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c7c33d0cd80ab163d13a33a8a1ed3e94a1d048dd",
+      "offset": 937,
+      "timestamp": 1737136989,
+      "metrics": {
+        "rust_files": 608,
+        "code_loc": 360536,
+        "source_code_loc": 294739,
+        "test_code_loc": 63648,
+        "comment_loc": 10505,
+        "doc_loc": 10634,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9100,
+        "block_comment_loc": 1990,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3502102d929329d937761a4ba8a93086314315b9",
+      "offset": 968,
+      "timestamp": 1736283264,
+      "metrics": {
+        "rust_files": 606,
+        "code_loc": 360215,
+        "source_code_loc": 294607,
+        "test_code_loc": 63459,
+        "comment_loc": 10561,
+        "doc_loc": 10778,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9244,
+        "block_comment_loc": 1922,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "672cdbdf743ffa8e0d6ee1d9d88eaa2b3842cff7",
+      "offset": 1000,
+      "timestamp": 1733620995,
+      "metrics": {
+        "rust_files": 604,
+        "code_loc": 359017,
+        "source_code_loc": 293759,
+        "test_code_loc": 63109,
+        "comment_loc": 10512,
+        "doc_loc": 10726,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9192,
+        "block_comment_loc": 1915,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "af8712d32db7c588ab6a1f34ac6fccf41e4123f6",
+      "offset": 1031,
+      "timestamp": 1731612444,
+      "metrics": {
+        "rust_files": 599,
+        "code_loc": 357164,
+        "source_code_loc": 292236,
+        "test_code_loc": 62779,
+        "comment_loc": 10442,
+        "doc_loc": 10606,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9072,
+        "block_comment_loc": 1942,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e0338a1e5a6b079174f2529906e8e19246fba53b",
+      "offset": 1062,
+      "timestamp": 1730203771,
+      "metrics": {
+        "rust_files": 600,
+        "code_loc": 356761,
+        "source_code_loc": 292019,
+        "test_code_loc": 62593,
+        "comment_loc": 10433,
+        "doc_loc": 10627,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 9093,
+        "block_comment_loc": 1941,
+        "block_doc_loc": 90,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "db864416be8dd9802b06840d11e528a7654fcdf1",
+      "offset": 1093,
+      "timestamp": 1728591232,
+      "metrics": {
+        "rust_files": 593,
+        "code_loc": 354217,
+        "source_code_loc": 290588,
+        "test_code_loc": 61480,
+        "comment_loc": 10302,
+        "doc_loc": 10520,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 8986,
+        "block_comment_loc": 1936,
+        "block_doc_loc": 65,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "edeaa3660f1f6106aef5e469e01d2b5a4027352e",
+      "offset": 1125,
+      "timestamp": 1726825580,
+      "metrics": {
+        "rust_files": 591,
+        "code_loc": 352474,
+        "source_code_loc": 289524,
+        "test_code_loc": 60801,
+        "comment_loc": 10191,
+        "doc_loc": 10378,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 8844,
+        "block_comment_loc": 1937,
+        "block_doc_loc": 11,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e06d15858bc6166352d31ec41ab8c77b2eb211f6",
+      "offset": 1156,
+      "timestamp": 1724355288,
+      "metrics": {
+        "rust_files": 587,
+        "code_loc": 351541,
+        "source_code_loc": 288931,
+        "test_code_loc": 60461,
+        "comment_loc": 10140,
+        "doc_loc": 10375,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 8841,
+        "block_comment_loc": 1937,
+        "block_doc_loc": 11,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "640db41bbf5de07ea3302375705552b896c9e831",
+      "offset": 1187,
+      "timestamp": 1721860400,
+      "metrics": {
+        "rust_files": 578,
+        "code_loc": 345861,
+        "source_code_loc": 285772,
+        "test_code_loc": 57940,
+        "comment_loc": 9801,
+        "doc_loc": 10186,
+        "inner_doc_loc": 1534,
+        "outer_doc_loc": 8652,
+        "block_comment_loc": 1941,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d52a17fca32cd43c1e8ad1b8d9aa8f37ebcfe92c",
+      "offset": 1218,
+      "timestamp": 1720459447,
+      "metrics": {
+        "rust_files": 575,
+        "code_loc": 342502,
+        "source_code_loc": 283524,
+        "test_code_loc": 56829,
+        "comment_loc": 9534,
+        "doc_loc": 10138,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8629,
+        "block_comment_loc": 1898,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a6ed47a5be1250e5ed123dfab53f2121e64c566b",
+      "offset": 1250,
+      "timestamp": 1719759112,
+      "metrics": {
+        "rust_files": 573,
+        "code_loc": 341806,
+        "source_code_loc": 282955,
+        "test_code_loc": 56702,
+        "comment_loc": 9486,
+        "doc_loc": 10138,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8629,
+        "block_comment_loc": 1899,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "41931b5307eb57a0ae2d44aec9adb9e0f953dbdf",
+      "offset": 1281,
+      "timestamp": 1718914576,
+      "metrics": {
+        "rust_files": 571,
+        "code_loc": 341456,
+        "source_code_loc": 282621,
+        "test_code_loc": 56686,
+        "comment_loc": 9481,
+        "doc_loc": 10135,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8626,
+        "block_comment_loc": 1899,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8f5166fb956f61279ccad0008564b8c2cc65c05e",
+      "offset": 1312,
+      "timestamp": 1717449744,
+      "metrics": {
+        "rust_files": 571,
+        "code_loc": 340624,
+        "source_code_loc": 282020,
+        "test_code_loc": 56455,
+        "comment_loc": 9440,
+        "doc_loc": 10136,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8627,
+        "block_comment_loc": 1899,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "fe8f4ebbb118540d64c4eca1429a04df895d7e1a",
+      "offset": 1343,
+      "timestamp": 1715911297,
+      "metrics": {
+        "rust_files": 571,
+        "code_loc": 338596,
+        "source_code_loc": 280573,
+        "test_code_loc": 55874,
+        "comment_loc": 9339,
+        "doc_loc": 10135,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8626,
+        "block_comment_loc": 1909,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "aa0a2043a74ae4bf4a063e680ba7f9821743767a",
+      "offset": 1375,
+      "timestamp": 1714587232,
+      "metrics": {
+        "rust_files": 568,
+        "code_loc": 336624,
+        "source_code_loc": 279186,
+        "test_code_loc": 55289,
+        "comment_loc": 9255,
+        "doc_loc": 10121,
+        "inner_doc_loc": 1509,
+        "outer_doc_loc": 8612,
+        "block_comment_loc": 1922,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2d2995ad60dddf9ca5faa9dc49b8db29d002588a",
+      "offset": 1406,
+      "timestamp": 1713200820,
+      "metrics": {
+        "rust_files": 557,
+        "code_loc": 333830,
+        "source_code_loc": 276807,
+        "test_code_loc": 54874,
+        "comment_loc": 8905,
+        "doc_loc": 10098,
+        "inner_doc_loc": 1317,
+        "outer_doc_loc": 8781,
+        "block_comment_loc": 1906,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "791ffeb02459af34e6dc6cb4413b8f9dda58b47e",
+      "offset": 1437,
+      "timestamp": 1711474677,
+      "metrics": {
+        "rust_files": 551,
+        "code_loc": 329383,
+        "source_code_loc": 273466,
+        "test_code_loc": 53768,
+        "comment_loc": 8684,
+        "doc_loc": 9975,
+        "inner_doc_loc": 1316,
+        "outer_doc_loc": 8659,
+        "block_comment_loc": 1884,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "fbf65390add20796012898f090917a30ce4d9ee7",
+      "offset": 1468,
+      "timestamp": 1709921444,
+      "metrics": {
+        "rust_files": 546,
+        "code_loc": 325444,
+        "source_code_loc": 271730,
+        "test_code_loc": 51565,
+        "comment_loc": 8567,
+        "doc_loc": 9970,
+        "inner_doc_loc": 1316,
+        "outer_doc_loc": 8654,
+        "block_comment_loc": 1801,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "af1ca1cab2ca972e3f36ba1b7d0a1812051cae25",
+      "offset": 1500,
+      "timestamp": 1708977759,
+      "metrics": {
+        "rust_files": 547,
+        "code_loc": 323389,
+        "source_code_loc": 270298,
+        "test_code_loc": 50942,
+        "comment_loc": 8358,
+        "doc_loc": 9930,
+        "inner_doc_loc": 1316,
+        "outer_doc_loc": 8614,
+        "block_comment_loc": 1733,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "14978533201c20cfbb227c12eb34b41e173cb448",
+      "offset": 1531,
+      "timestamp": 1708084145,
+      "metrics": {
+        "rust_files": 545,
+        "code_loc": 322583,
+        "source_code_loc": 269822,
+        "test_code_loc": 50612,
+        "comment_loc": 8328,
+        "doc_loc": 9927,
+        "inner_doc_loc": 1316,
+        "outer_doc_loc": 8611,
+        "block_comment_loc": 1724,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b7b0c30f2a1eb879babf094c03c0f8e8002e04be",
+      "offset": 1562,
+      "timestamp": 1706177062,
+      "metrics": {
+        "rust_files": 527,
+        "code_loc": 314643,
+        "source_code_loc": 263322,
+        "test_code_loc": 49172,
+        "comment_loc": 8115,
+        "doc_loc": 8830,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7674,
+        "block_comment_loc": 1705,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bc5d0b836bc09d3f25002687d78aee885d4d64cf",
+      "offset": 1593,
+      "timestamp": 1702857059,
+      "metrics": {
+        "rust_files": 521,
+        "code_loc": 311644,
+        "source_code_loc": 261736,
+        "test_code_loc": 47759,
+        "comment_loc": 7865,
+        "doc_loc": 8793,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7637,
+        "block_comment_loc": 1693,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ec8f63a1887c773bef5ac1e597e244757b634051",
+      "offset": 1625,
+      "timestamp": 1700943497,
+      "metrics": {
+        "rust_files": 520,
+        "code_loc": 310177,
+        "source_code_loc": 260622,
+        "test_code_loc": 47406,
+        "comment_loc": 7831,
+        "doc_loc": 8793,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7637,
+        "block_comment_loc": 1691,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "825487c07f70a5413ac0a51471bc8fdd90036074",
+      "offset": 1656,
+      "timestamp": 1700070948,
+      "metrics": {
+        "rust_files": 519,
+        "code_loc": 308537,
+        "source_code_loc": 259555,
+        "test_code_loc": 46833,
+        "comment_loc": 7694,
+        "doc_loc": 8759,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7603,
+        "block_comment_loc": 1691,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3223fa59d8f1c7b8a44b74f3a81af775d17005f0",
+      "offset": 1687,
+      "timestamp": 1698917249,
+      "metrics": {
+        "rust_files": 514,
+        "code_loc": 305980,
+        "source_code_loc": 257493,
+        "test_code_loc": 46338,
+        "comment_loc": 7586,
+        "doc_loc": 8747,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7591,
+        "block_comment_loc": 1691,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b44cf58ef28bda8a05d322d82237d8444d784ab8",
+      "offset": 1718,
+      "timestamp": 1697443429,
+      "metrics": {
+        "rust_files": 510,
+        "code_loc": 304392,
+        "source_code_loc": 256236,
+        "test_code_loc": 46007,
+        "comment_loc": 7501,
+        "doc_loc": 8743,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7587,
+        "block_comment_loc": 1640,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "6adcce0a339a097cb6eccfd6615620b6c23a6ade",
+      "offset": 1750,
+      "timestamp": 1696007399,
+      "metrics": {
+        "rust_files": 507,
+        "code_loc": 301196,
+        "source_code_loc": 253656,
+        "test_code_loc": 45391,
+        "comment_loc": 7400,
+        "doc_loc": 8723,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7567,
+        "block_comment_loc": 1637,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "dbf8eb6722ce7a9281754cea281dd41dbe965251",
+      "offset": 1781,
+      "timestamp": 1694720549,
+      "metrics": {
+        "rust_files": 504,
+        "code_loc": 300024,
+        "source_code_loc": 252612,
+        "test_code_loc": 45263,
+        "comment_loc": 7300,
+        "doc_loc": 8708,
+        "inner_doc_loc": 1156,
+        "outer_doc_loc": 7552,
+        "block_comment_loc": 1628,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "309a0eca409eeec23d3f7142ca27fb3151c79025",
+      "offset": 1812,
+      "timestamp": 1693342104,
+      "metrics": {
+        "rust_files": 512,
+        "code_loc": 302061,
+        "source_code_loc": 254651,
+        "test_code_loc": 45261,
+        "comment_loc": 7514,
+        "doc_loc": 8847,
+        "inner_doc_loc": 1172,
+        "outer_doc_loc": 7675,
+        "block_comment_loc": 1669,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b7be992b31dca16e025aba02a09188218ed16481",
+      "offset": 1843,
+      "timestamp": 1692172165,
+      "metrics": {
+        "rust_files": 511,
+        "code_loc": 301258,
+        "source_code_loc": 254080,
+        "test_code_loc": 45029,
+        "comment_loc": 7470,
+        "doc_loc": 8833,
+        "inner_doc_loc": 1172,
+        "outer_doc_loc": 7661,
+        "block_comment_loc": 1664,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2ae6dce934d5e391e85d36cb50d84abd94f89270",
+      "offset": 1875,
+      "timestamp": 1690978431,
+      "metrics": {
+        "rust_files": 509,
+        "code_loc": 298763,
+        "source_code_loc": 251725,
+        "test_code_loc": 44889,
+        "comment_loc": 7323,
+        "doc_loc": 8430,
+        "inner_doc_loc": 1171,
+        "outer_doc_loc": 7259,
+        "block_comment_loc": 1661,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ffd9cae006127de6c1369f5ea198f4d109f6649b",
+      "offset": 1906,
+      "timestamp": 1689698537,
+      "metrics": {
+        "rust_files": 507,
+        "code_loc": 297754,
+        "source_code_loc": 251099,
+        "test_code_loc": 44506,
+        "comment_loc": 7295,
+        "doc_loc": 8429,
+        "inner_doc_loc": 1171,
+        "outer_doc_loc": 7258,
+        "block_comment_loc": 1659,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0c4b40410b09f455929ee8881716d0a980be6fbe",
+      "offset": 1937,
+      "timestamp": 1689028982,
+      "metrics": {
+        "rust_files": 500,
+        "code_loc": 296331,
+        "source_code_loc": 250060,
+        "test_code_loc": 44122,
+        "comment_loc": 7178,
+        "doc_loc": 8430,
+        "inner_doc_loc": 1171,
+        "outer_doc_loc": 7259,
+        "block_comment_loc": 1883,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c8f3058f6d71eeb2ef666ab7501eb615072ad557",
+      "offset": 1968,
+      "timestamp": 1687968862,
+      "metrics": {
+        "rust_files": 498,
+        "code_loc": 295831,
+        "source_code_loc": 249751,
+        "test_code_loc": 43931,
+        "comment_loc": 7159,
+        "doc_loc": 8430,
+        "inner_doc_loc": 1171,
+        "outer_doc_loc": 7259,
+        "block_comment_loc": 1857,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "761ff76e04aa9df57065f0e9b3403f6a5eb03a9f",
+      "offset": 2000,
+      "timestamp": 1686761850,
+      "metrics": {
+        "rust_files": 496,
+        "code_loc": 293430,
+        "source_code_loc": 247711,
+        "test_code_loc": 43570,
+        "comment_loc": 7022,
+        "doc_loc": 8366,
+        "inner_doc_loc": 1171,
+        "outer_doc_loc": 7195,
+        "block_comment_loc": 1852,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4ef61030aadc4fd66b62f3614f36e3b64e89b855",
+      "offset": 2031,
+      "timestamp": 1685987601,
+      "metrics": {
+        "rust_files": 486,
+        "code_loc": 288997,
+        "source_code_loc": 244972,
+        "test_code_loc": 41876,
+        "comment_loc": 6748,
+        "doc_loc": 8287,
+        "inner_doc_loc": 1160,
+        "outer_doc_loc": 7127,
+        "block_comment_loc": 1829,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "828aaa92e1f9278b2db07e82d0420435d370d661",
+      "offset": 2062,
+      "timestamp": 1683866447,
+      "metrics": {
+        "rust_files": 482,
+        "code_loc": 286991,
+        "source_code_loc": 244046,
+        "test_code_loc": 40796,
+        "comment_loc": 6629,
+        "doc_loc": 8250,
+        "inner_doc_loc": 1160,
+        "outer_doc_loc": 7090,
+        "block_comment_loc": 1815,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 247:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "21c592788777e354b6ddb69fd642610186124923",
+      "offset": 2093,
+      "timestamp": 1679691811,
+      "metrics": {
+        "rust_files": 466,
+        "code_loc": 281730,
+        "source_code_loc": 240717,
+        "test_code_loc": 38864,
+        "comment_loc": 6351,
+        "doc_loc": 8092,
+        "inner_doc_loc": 1198,
+        "outer_doc_loc": 6894,
+        "block_comment_loc": 1881,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3c985a9c6200dc78af27e517370987cb56681d1b",
+      "offset": 2125,
+      "timestamp": 1678114343,
+      "metrics": {
+        "rust_files": 464,
+        "code_loc": 280972,
+        "source_code_loc": 240086,
+        "test_code_loc": 38737,
+        "comment_loc": 6296,
+        "doc_loc": 8169,
+        "inner_doc_loc": 1196,
+        "outer_doc_loc": 6973,
+        "block_comment_loc": 1887,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ff8a0020fc79085650b672a4bf3d5e975ce2de01",
+      "offset": 2156,
+      "timestamp": 1677191126,
+      "metrics": {
+        "rust_files": 460,
+        "code_loc": 279857,
+        "source_code_loc": 239028,
+        "test_code_loc": 38680,
+        "comment_loc": 6117,
+        "doc_loc": 8158,
+        "inner_doc_loc": 1196,
+        "outer_doc_loc": 6962,
+        "block_comment_loc": 1834,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "846b3049e7bcc1b1eebb0f5e225f97487c8a0c11",
+      "offset": 2187,
+      "timestamp": 1675484334,
+      "metrics": {
+        "rust_files": 454,
+        "code_loc": 275099,
+        "source_code_loc": 234782,
+        "test_code_loc": 38168,
+        "comment_loc": 6032,
+        "doc_loc": 8096,
+        "inner_doc_loc": 1190,
+        "outer_doc_loc": 6906,
+        "block_comment_loc": 1436,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e86befd651e18fafc91029e3c63ee23223996d3e",
+      "offset": 2218,
+      "timestamp": 1673510178,
+      "metrics": {
+        "rust_files": 450,
+        "code_loc": 273786,
+        "source_code_loc": 234085,
+        "test_code_loc": 37552,
+        "comment_loc": 5952,
+        "doc_loc": 8073,
+        "inner_doc_loc": 1180,
+        "outer_doc_loc": 6893,
+        "block_comment_loc": 1397,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a3835d9fa3ac1067447696d96cd19c7d18185d2a",
+      "offset": 2250,
+      "timestamp": 1672867943,
+      "metrics": {
+        "rust_files": 447,
+        "code_loc": 270433,
+        "source_code_loc": 232252,
+        "test_code_loc": 36032,
+        "comment_loc": 5635,
+        "doc_loc": 7997,
+        "inner_doc_loc": 1180,
+        "outer_doc_loc": 6817,
+        "block_comment_loc": 1395,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "89d4952301c47c76fc772c2cc40d71ea67860797",
+      "offset": 2281,
+      "timestamp": 1668562815,
+      "metrics": {
+        "rust_files": 437,
+        "code_loc": 267519,
+        "source_code_loc": 229671,
+        "test_code_loc": 35699,
+        "comment_loc": 5495,
+        "doc_loc": 7647,
+        "inner_doc_loc": 1178,
+        "outer_doc_loc": 6469,
+        "block_comment_loc": 1381,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "42137750fedd24c0225f2d9420ea5848ae9cc95e",
+      "offset": 2312,
+      "timestamp": 1664297748,
+      "metrics": {
+        "rust_files": 432,
+        "code_loc": 266001,
+        "source_code_loc": 228391,
+        "test_code_loc": 35461,
+        "comment_loc": 5355,
+        "doc_loc": 7474,
+        "inner_doc_loc": 1178,
+        "outer_doc_loc": 6296,
+        "block_comment_loc": 1381,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "747bb17875daee860af9b6a63967c5dc50dd1d4d",
+      "offset": 2343,
+      "timestamp": 1663595191,
+      "metrics": {
+        "rust_files": 430,
+        "code_loc": 265326,
+        "source_code_loc": 227787,
+        "test_code_loc": 35390,
+        "comment_loc": 5251,
+        "doc_loc": 7475,
+        "inner_doc_loc": 1178,
+        "outer_doc_loc": 6297,
+        "block_comment_loc": 1242,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "27b13ec70ce6f9e6a274cfb0777f4dbf6c2bb7db",
+      "offset": 2375,
+      "timestamp": 1662630557,
+      "metrics": {
+        "rust_files": 421,
+        "code_loc": 262335,
+        "source_code_loc": 225189,
+        "test_code_loc": 34997,
+        "comment_loc": 4948,
+        "doc_loc": 7381,
+        "inner_doc_loc": 1172,
+        "outer_doc_loc": 6209,
+        "block_comment_loc": 906,
+        "block_doc_loc": 0,
+        "example_code_loc": 2149
+      },
+      "parse_errors": [
+        "dependencies/syn/tests/test_item.rs: inherent impls cannot be negative at 65:10",
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "100d12aaa331eb06cd54a683037bb18a3d676cda",
+      "offset": 2406,
+      "timestamp": 1661539514,
+      "metrics": {
+        "rust_files": 260,
+        "code_loc": 72582,
+        "source_code_loc": 50254,
+        "test_code_loc": 22328,
+        "comment_loc": 4159,
+        "doc_loc": 1835,
+        "inner_doc_loc": 142,
+        "outer_doc_loc": 1693,
+        "block_comment_loc": 785,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1211658ad7370bd59df6d3c8293695cce8a26a54",
+      "offset": 2437,
+      "timestamp": 1660134076,
+      "metrics": {
+        "rust_files": 251,
+        "code_loc": 69564,
+        "source_code_loc": 47768,
+        "test_code_loc": 21796,
+        "comment_loc": 3687,
+        "doc_loc": 1825,
+        "inner_doc_loc": 142,
+        "outer_doc_loc": 1683,
+        "block_comment_loc": 768,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "06a3c1b0f584cb04102bf5be061644f7e9b28047",
+      "offset": 2468,
+      "timestamp": 1659473889,
+      "metrics": {
+        "rust_files": 249,
+        "code_loc": 68539,
+        "source_code_loc": 47073,
+        "test_code_loc": 21466,
+        "comment_loc": 3653,
+        "doc_loc": 1798,
+        "inner_doc_loc": 142,
+        "outer_doc_loc": 1656,
+        "block_comment_loc": 768,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/rust_verify/example/state_machines/disk_example.rs: expected an expression at 248:29"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a1c51ce756d72c7ff5f816bb6e5cddc910fc6470",
+      "offset": 2500,
+      "timestamp": 1657159726,
+      "metrics": {
+        "rust_files": 243,
+        "code_loc": 63563,
+        "source_code_loc": 43185,
+        "test_code_loc": 20378,
+        "comment_loc": 3239,
+        "doc_loc": 1738,
+        "inner_doc_loc": 142,
+        "outer_doc_loc": 1596,
+        "block_comment_loc": 589,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/pervasive/ptr.rs: expected an expression at 157:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "87da204d5f265ddea074453141921e912436e9b3",
+      "offset": 2531,
+      "timestamp": 1654975573,
+      "metrics": {
+        "rust_files": 233,
+        "code_loc": 59589,
+        "source_code_loc": 39749,
+        "test_code_loc": 19840,
+        "comment_loc": 3093,
+        "doc_loc": 1346,
+        "inner_doc_loc": 141,
+        "outer_doc_loc": 1205,
+        "block_comment_loc": 519,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/pervasive/ptr.rs: expected an expression at 75:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "66270292148fbb0843aefad4eab5ba4896f4cd80",
+      "offset": 2562,
+      "timestamp": 1652910427,
+      "metrics": {
+        "rust_files": 224,
+        "code_loc": 54950,
+        "source_code_loc": 36744,
+        "test_code_loc": 18206,
+        "comment_loc": 2888,
+        "doc_loc": 1119,
+        "inner_doc_loc": 141,
+        "outer_doc_loc": 978,
+        "block_comment_loc": 497,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/pervasive/ptr.rs: expected an expression at 75:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "467c91d8085f8ecb199f897aa77ce4a86beaf830",
+      "offset": 2593,
+      "timestamp": 1650652370,
+      "metrics": {
+        "rust_files": 215,
+        "code_loc": 52279,
+        "source_code_loc": 34509,
+        "test_code_loc": 17770,
+        "comment_loc": 2592,
+        "doc_loc": 1052,
+        "inner_doc_loc": 141,
+        "outer_doc_loc": 911,
+        "block_comment_loc": 442,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/rust/linear-ghost.rs: expected `,` at 12:22",
+        "source/pervasive/ptr.rs: expected an expression at 48:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "989570c8db8a7c9c61e76be552905f3b2c8b223e",
+      "offset": 2625,
+      "timestamp": 1648754256,
+      "metrics": {
+        "rust_files": 207,
+        "code_loc": 48247,
+        "source_code_loc": 31634,
+        "test_code_loc": 16613,
+        "comment_loc": 2485,
+        "doc_loc": 1015,
+        "inner_doc_loc": 139,
+        "outer_doc_loc": 876,
+        "block_comment_loc": 370,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/pervasive/ptr.rs: expected an expression at 48:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "345187e61575e3c20261e45d8be132b15b28ae38",
+      "offset": 2656,
+      "timestamp": 1647736763,
+      "metrics": {
+        "rust_files": 195,
+        "code_loc": 40927,
+        "source_code_loc": 30224,
+        "test_code_loc": 10703,
+        "comment_loc": 2202,
+        "doc_loc": 920,
+        "inner_doc_loc": 139,
+        "outer_doc_loc": 781,
+        "block_comment_loc": 349,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/bv_expriments/bv_examples.rs: expected curly braces at 9:44",
+        "source/pervasive/ptr.rs: expected an expression at 48:29",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3035e2ac2dc2927009d11f4ce9add7cae856d8ad",
+      "offset": 2687,
+      "timestamp": 1646171896,
+      "metrics": {
+        "rust_files": 161,
+        "code_loc": 31890,
+        "source_code_loc": 22604,
+        "test_code_loc": 9286,
+        "comment_loc": 1313,
+        "doc_loc": 470,
+        "inner_doc_loc": 93,
+        "outer_doc_loc": 377,
+        "block_comment_loc": 323,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/bv_expriments/bv_examples.rs: expected curly braces at 9:44",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "64ed675c87cd9d349bae2bf499cbab5512f254b5",
+      "offset": 2718,
+      "timestamp": 1644342292,
+      "metrics": {
+        "rust_files": 156,
+        "code_loc": 30262,
+        "source_code_loc": 21661,
+        "test_code_loc": 8601,
+        "comment_loc": 1280,
+        "doc_loc": 451,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 360,
+        "block_comment_loc": 321,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/bv_expriments/bv_examples.rs: expected curly braces at 9:44",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "08398692da8c21f1372265f1121fa0657caeba84",
+      "offset": 2750,
+      "timestamp": 1643082684,
+      "metrics": {
+        "rust_files": 144,
+        "code_loc": 26945,
+        "source_code_loc": 19715,
+        "test_code_loc": 7230,
+        "comment_loc": 1238,
+        "doc_loc": 433,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 342,
+        "block_comment_loc": 313,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/docs/bv_expriments/bv_examples.rs: expected curly braces at 9:44",
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "fd0ab183065a7174ea2565843c61ca87bcfc8e97",
+      "offset": 2781,
+      "timestamp": 1641522378,
+      "metrics": {
+        "rust_files": 128,
+        "code_loc": 23124,
+        "source_code_loc": 16777,
+        "test_code_loc": 6347,
+        "comment_loc": 1021,
+        "doc_loc": 379,
+        "inner_doc_loc": 90,
+        "outer_doc_loc": 289,
+        "block_comment_loc": 302,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b5581b11ee7ebd37e7b99455c3a6f190181cbaaa",
+      "offset": 2812,
+      "timestamp": 1639150968,
+      "metrics": {
+        "rust_files": 122,
+        "code_loc": 21502,
+        "source_code_loc": 16015,
+        "test_code_loc": 5487,
+        "comment_loc": 941,
+        "doc_loc": 343,
+        "inner_doc_loc": 90,
+        "outer_doc_loc": 253,
+        "block_comment_loc": 242,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d92f1b4d8bb5074f225cb8d5919311ff4c1059f0",
+      "offset": 2843,
+      "timestamp": 1638319814,
+      "metrics": {
+        "rust_files": 117,
+        "code_loc": 19242,
+        "source_code_loc": 14887,
+        "test_code_loc": 4355,
+        "comment_loc": 845,
+        "doc_loc": 337,
+        "inner_doc_loc": 90,
+        "outer_doc_loc": 247,
+        "block_comment_loc": 214,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/rust_verify/example/datatypes.rs: expected an expression at 50:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1848911598474f7713620b10f0d6db43a5427d70",
+      "offset": 2875,
+      "timestamp": 1636991610,
+      "metrics": {
+        "rust_files": 103,
+        "code_loc": 16256,
+        "source_code_loc": 12887,
+        "test_code_loc": 3369,
+        "comment_loc": 701,
+        "doc_loc": 319,
+        "inner_doc_loc": 90,
+        "outer_doc_loc": 229,
+        "block_comment_loc": 250,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "358e3fad417f977ff650b61e28d2818af9832c6b",
+      "offset": 2906,
+      "timestamp": 1636472399,
+      "metrics": {
+        "rust_files": 100,
+        "code_loc": 14965,
+        "source_code_loc": 12187,
+        "test_code_loc": 2778,
+        "comment_loc": 585,
+        "doc_loc": 297,
+        "inner_doc_loc": 80,
+        "outer_doc_loc": 217,
+        "block_comment_loc": 244,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "source/rust_verify/example/datatypes.rs: expected an expression at 51:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "82983f3f950b775782dd22865ce196404939d8e0",
+      "offset": 2937,
+      "timestamp": 1634593497,
+      "metrics": {
+        "rust_files": 89,
+        "code_loc": 12377,
+        "source_code_loc": 10628,
+        "test_code_loc": 1749,
+        "comment_loc": 464,
+        "doc_loc": 281,
+        "inner_doc_loc": 79,
+        "outer_doc_loc": 202,
+        "block_comment_loc": 221,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cb2feceea6d8725840083ffe398b0475ac070ab8",
+      "offset": 2968,
+      "timestamp": 1630511369,
+      "metrics": {
+        "rust_files": 77,
+        "code_loc": 11501,
+        "source_code_loc": 9848,
+        "test_code_loc": 1653,
+        "comment_loc": 424,
+        "doc_loc": 109,
+        "inner_doc_loc": 39,
+        "outer_doc_loc": 70,
+        "block_comment_loc": 234,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0d7010c65f7da4892d1f9a647306cb62921a9496",
+      "offset": 3000,
+      "timestamp": 1622142204,
+      "metrics": {
+        "rust_files": 61,
+        "code_loc": 9820,
+        "source_code_loc": 8462,
+        "test_code_loc": 1358,
+        "comment_loc": 319,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 180,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1dd5ded97e202bc951a55da086652a0ef7ef2288",
+      "offset": 3031,
+      "timestamp": 1620099615,
+      "metrics": {
+        "rust_files": 47,
+        "code_loc": 7411,
+        "source_code_loc": 6517,
+        "test_code_loc": 894,
+        "comment_loc": 238,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 163,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3877e14b964426d168d5bdfb560707faedfd661a",
+      "offset": 3062,
+      "timestamp": 1618926909,
+      "metrics": {
+        "rust_files": 33,
+        "code_loc": 4667,
+        "source_code_loc": 3929,
+        "test_code_loc": 738,
+        "comment_loc": 98,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 63,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "eaa340bced222cb79ed55b5b7150ad6ded64bba0",
+      "offset": 3094,
+      "timestamp": 1617635944,
+      "metrics": {
+        "rust_files": 20,
+        "code_loc": 1119,
+        "source_code_loc": 1097,
+        "test_code_loc": 0,
+        "comment_loc": 29,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 25,
+        "block_doc_loc": 0,
+        "example_code_loc": 22
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    }
+  ]
+}</script>
+<script>
+const reportDocument = JSON.parse(document.getElementById('report').textContent)
+const reports = reportDocument.repositories || [reportDocument]
+const preferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('coogles.preferences') || '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch { return {} }
+})()
+for (const [identifier, key] of [['hide-tables', 'hideTables'], ['percentage-mode', 'percentageMode'], ['compact-mode', 'compactMode'], ['hide-points', 'hidePoints']]) {
+  if (typeof preferences[key] === 'boolean') document.getElementById(identifier).checked = preferences[key]
+}
+if (typeof preferences.hideTables !== 'boolean') {
+  try {
+    const saved = localStorage.getItem('coogles.hideTables')
+    if (saved !== null) document.getElementById('hide-tables').checked = saved === 'true'
+  } catch {}
+}
+if (['commits', 'time-1week', 'time', 'time-4weeks'].includes(preferences.axisMode)) {
+  document.getElementById('axis-mode').value = preferences.axisMode
+}
+const series = [
+  { key: 'code_loc', name: 'Code (total)', color: '#ff879c' },
+  { key: 'source_code_loc', name: 'Source code', color: '#f0eb83' },
+  { key: 'test_code_loc', name: 'Tests', color: '#69c7ff' },
+  { key: 'comment_loc', name: '// comments', color: '#ffc56a' },
+  { key: 'doc_loc', name: 'Docs (//! + ///)', color: '#ba9aff' },
+  { key: 'example_code_loc', name: 'Examples', color: '#67dfa6' }
+]
+const enabled = new Set(series.filter(item => !Array.isArray(preferences.enabledSeries) || preferences.enabledSeries.includes(item.key)).map(item => item.key))
+function timestampMonth(timestamp) {
+  const date = new Date(timestamp * 1000)
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function formatMonth(month) {
+  const year = Math.floor(month / 12)
+  return `${year}-${String(month - year * 12 + 1).padStart(2, '0')}`
+}
+const months = reports.flatMap(report => report.snapshots.map(snapshot => timestampMonth(snapshot.timestamp)))
+const firstMonth = Math.min(...months)
+const lastMonth = Math.max(...months)
+const monthCount = lastMonth - firstMonth
+const startMonthInput = document.getElementById('start-month')
+const endMonthInput = document.getElementById('end-month')
+for (const input of [startMonthInput, endMonthInput]) {
+  input.max = String(monthCount)
+  input.disabled = monthCount === 0
+}
+startMonthInput.value = '0'
+endMonthInput.value = String(monthCount)
+let rangePreset = [0, 2, 6, 12, 24].includes(preferences.rangePreset) ? preferences.rangePreset : null
+const savedRange = preferences.dateRange
+if (rangePreset !== null) {
+  startMonthInput.value = String(rangePreset ? Math.max(0, monthCount - rangePreset + 1) : 0)
+} else if (savedRange && Number.isInteger(savedRange.start) && Number.isInteger(savedRange.end)
+  && savedRange.start <= savedRange.end && savedRange.end >= firstMonth && savedRange.start <= lastMonth) {
+  startMonthInput.value = String(Math.max(firstMonth, savedRange.start) - firstMonth)
+  endMonthInput.value = String(Math.min(lastMonth, savedRange.end) - firstMonth)
+} else {
+  rangePreset = 0
+}
+function savePreferences() {
+  try {
+    localStorage.setItem('coogles.preferences', JSON.stringify({
+      axisMode: document.getElementById('axis-mode').value,
+      percentageMode: document.getElementById('percentage-mode').checked,
+      compactMode: document.getElementById('compact-mode').checked,
+      hidePoints: document.getElementById('hide-points').checked,
+      hideTables: document.getElementById('hide-tables').checked,
+      enabledSeries: [...enabled],
+      dateRange: { start: firstMonth + Number(startMonthInput.value), end: firstMonth + Number(endMonthInput.value) },
+      rangePreset
+    }))
+  } catch {}
+}
+function updateDateRange(changed) {
+  let start = Number(startMonthInput.value)
+  let end = Number(endMonthInput.value)
+  if (start > end) {
+    if (changed === 'start-month') {
+      end = start
+      endMonthInput.value = String(end)
+    } else {
+      start = end
+      startMonthInput.value = String(start)
+    }
+  }
+  const startLabel = formatMonth(firstMonth + start)
+  const endLabel = formatMonth(firstMonth + end)
+  document.getElementById('start-month-label').textContent = startLabel
+  document.getElementById('end-month-label').textContent = endLabel
+  startMonthInput.setAttribute('aria-valuetext', startLabel)
+  endMonthInput.setAttribute('aria-valuetext', endLabel)
+  const selected = document.getElementById('range-selected')
+  selected.style.left = `${monthCount ? start / monthCount * 100 : 0}%`
+  selected.style.width = `${monthCount ? (end - start) / monthCount * 100 : 100}%`
+}
+updateDateRange()
+const namespace = 'http://www.w3.org/2000/svg'
+function element(tag, attributes, text) {
+  const node = document.createElementNS(namespace, tag)
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value)
+  if (text !== undefined) node.textContent = text
+  return node
+}
+function renderRepository(report, index) {
+  const section = document.createElement('section')
+  section.id = `repository-${index}`
+  section.innerHTML = document.getElementById('repository-template').innerHTML
+  document.getElementById('repositories').append(section)
+  const getElement = identifier => section.querySelector(`[data-element="${identifier}"]`)
+  const parts = report.repository.split('/').filter(Boolean)
+  const dataIndex = parts.lastIndexOf('data')
+  const inferredUrl = dataIndex >= 0 && parts.length >= dataIndex + 3 ? `https://github.com/${parts[dataIndex + 1]}/${parts[dataIndex + 2]}` : null
+  const repositoryUrl = report.repository_url || inferredUrl
+  const repositoryName = repositoryUrl ? repositoryUrl.split('/').slice(-2).join('/') : (parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1])
+  const link = document.createElement('a')
+  link.textContent = repositoryName
+  link.href = `#${section.id}`
+  link.title = report.repository
+  const entry = document.createElement('li')
+  entry.append(link)
+  document.getElementById('repository-links').append(entry)
+  if (repositoryUrl) {
+    getElement('heading').textContent = repositoryName
+    getElement('heading').href = repositoryUrl
+  } else {
+    getElement('heading').textContent = repositoryName
+  }
+  const allSnapshots = [...report.snapshots].reverse()
+  let snapshots = allSnapshots
+  const svg = getElement('plot')
+  function metricValue(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key]
+    return snapshot.metrics.code_loc > 0 ? snapshot.metrics[key] / snapshot.metrics.code_loc * 100 : 0
+  }
+  function formatMetric(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key].toLocaleString()
+    return snapshot.metrics.code_loc > 0 ? `${metricValue(snapshot, key).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : 'N/A'
+  }
+  function draw() {
+    svg.replaceChildren()
+    getElement('detail').textContent = ''
+    const compact = document.getElementById('compact-mode').checked
+    section.className = compact ? 'compact' : ''
+    getElement('summary').hidden = compact
+    const graphHeight = compact ? 440 : 800
+    const plotBottom = graphHeight - 80
+    const plotHeight = plotBottom - 40
+    svg.setAttribute('viewBox', `0 0 1000 ${graphHeight}`)
+    if (snapshots.length === 0) {
+      svg.append(element('text', { x: 500, y: graphHeight / 2, 'text-anchor': 'middle' }, 'No samples in selected months'))
+      return
+    }
+    const visible = series.filter(item => enabled.has(item.key))
+    const percentageMode = document.getElementById('percentage-mode').checked
+    const hidePoints = document.getElementById('hide-points').checked
+    const values = snapshots.flatMap(snapshot => visible.map(item => metricValue(snapshot, item.key)))
+    const highest = Math.max(0, ...values)
+    const percentageStep = highest > 0 ? 10 ** Math.floor(Math.log10(highest)) / 4 : 1
+    const maximum = percentageMode ? Math.max(percentageStep, Math.ceil(highest / percentageStep) * percentageStep) : Math.max(1, highest) * 1.1
+    const percentageDigits = Math.min(6, Math.max(1, 1 - Math.floor(Math.log10(maximum))))
+    svg.setAttribute('aria-label', percentageMode ? 'Rust metrics as percentages of total code over sampled Git history' : 'Rust line counts over sampled Git history')
+    const axisMode = document.getElementById('axis-mode').value
+    const timeMode = axisMode !== 'commits'
+    const weeks = axisMode === 'time-1week' ? 1 : axisMode === 'time-4weeks' ? 4 : 2
+    const plotted = timeMode ? [...snapshots].sort((left, right) => left.timestamp - right.timestamp) : snapshots
+    const oldest = plotted[0].offset
+    const newest = plotted[plotted.length - 1].offset
+    const earliest = plotted[0].timestamp
+    const latest = plotted[plotted.length - 1].timestamp
+    const timePosition = timestamp => earliest === latest ? 530 : 80 + (timestamp - earliest) / (latest - earliest) * 860
+    const positionX = timeMode ? snapshot => timePosition(snapshot.timestamp) :
+      snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
+    const positionY = value => plotBottom - value / maximum * plotHeight
+    const gridSteps = compact ? 4 : 8
+    for (let index = 0; index <= gridSteps; index++) {
+      const value = maximum * index / gridSteps
+      const height = positionY(value)
+      svg.append(element('line', { x1: 80, x2: 940, y1: height, y2: height, class: 'grid' }))
+      svg.append(element('text', { x: 70, y: height + 4, 'text-anchor': 'end' }, percentageMode ? `${value.toLocaleString(undefined, { maximumFractionDigits: percentageDigits })}%` : Math.round(value).toLocaleString()))
+    }
+    if (timeMode) {
+      const interval = weeks * 7 * 24 * 60 * 60
+      const monday = Date.UTC(1970, 0, 5) / 1000
+      const firstTick = monday + Math.ceil((earliest - monday) / interval) * interval
+      const ticks = []
+      for (let timestamp = firstTick; timestamp <= latest; timestamp += interval) ticks.push(timestamp)
+      const labelEvery = Math.max(1, Math.ceil(ticks.length / 7))
+      ticks.forEach((timestamp, index) => {
+        const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
+        const grid = element('line', { x1: timePosition(timestamp), x2: timePosition(timestamp), y1: 40, y2: plotBottom, class: 'grid', 'stroke-opacity': 0.4 })
+        grid.append(element('title', {}, date))
+        svg.append(grid)
+        if (ticks.length >= 2 && index % labelEvery === 0) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, date))
+        }
+      })
+      if (ticks.length < 2) {
+        for (const timestamp of new Set([earliest, latest])) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, new Date(timestamp * 1000).toISOString().slice(0, 10)))
+        }
+      }
+    } else {
+      const labelEvery = Math.max(1, Math.ceil(plotted.length / 10))
+      plotted.forEach((snapshot, index) => {
+        if (index % labelEvery === 0 || index === plotted.length - 1) {
+          svg.append(element('text', { x: positionX(snapshot), y: plotBottom + 29, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+        }
+      })
+    }
+    const axisTitle = timeMode ? `Commit date (UTC) · every ${weeks === 1 ? 'week' : `${weeks} weeks`}` : 'First-parent commit offset from HEAD · oldest to newest'
+    svg.append(element('text', { x: 510, y: graphHeight - 18, 'text-anchor': 'middle' }, axisTitle))
+    for (const item of visible) {
+      const points = plotted.map(snapshot => `${positionX(snapshot)},${positionY(metricValue(snapshot, item.key))}`).join(' ')
+      svg.append(element('polyline', { points, fill: 'none', stroke: item.color, 'stroke-width': 2.5 }))
+      for (const snapshot of plotted) {
+        const date = new Date(snapshot.timestamp * 1000).toISOString().slice(0, 10)
+        const value = `${item.name}: ${formatMetric(snapshot, item.key)} · ${date}`
+        const circle = element('circle', { cx: positionX(snapshot), cy: positionY(metricValue(snapshot, item.key)), r: 5, fill: hidePoints ? 'transparent' : item.color, tabindex: 0, 'aria-label': value })
+        circle.append(element('title', {}, value))
+        const show = () => { getElement('detail').textContent = value }
+        const clear = () => { getElement('detail').textContent = '' }
+        circle.addEventListener('mouseenter', show)
+        circle.addEventListener('mouseleave', clear)
+        circle.addEventListener('focus', show)
+        circle.addEventListener('blur', clear)
+        svg.append(circle)
+      }
+    }
+  }
+  const failures = snapshots.reduce((total, snapshot) => total + snapshot.parse_errors.length, 0)
+  const manifestFailures = snapshots.reduce((total, snapshot) => total + (snapshot.manifest_errors || []).length, 0)
+  const warnings = []
+  if (report.configuration.history_truncated) warnings.push(`Requested ${report.configuration.requested_commits} commits, but only ${report.configuration.commits} first-parent edges are available. Sampled the available history.`)
+  if (report.configuration.shallow_boundary) warnings.push('Reached a shallow clone boundary. Deepen the clone to include older history.')
+  if (failures) warnings.push(`${failures} file/snapshot parse failures. Inline test counts may be incomplete. Details are in the JSON.`)
+  if (manifestFailures) warnings.push(`${manifestFailures} file/snapshot manifest parse failures. Custom target paths may be incomplete. Details are in the JSON.`)
+  getElement('warning').textContent = warnings.join(' ')
+  function drawTable() {
+    const rows = getElement('rows')
+    rows.replaceChildren()
+    for (const snapshot of snapshots) {
+      const row = document.createElement('tr')
+      for (const value of [`${snapshot.commit.slice(0, 10)} · ~${snapshot.offset}`, ...series.map(item => formatMetric(snapshot, item.key))]) {
+        const cell = document.createElement('td')
+        cell.textContent = value
+        row.append(cell)
+      }
+      rows.append(row)
+    }
+  }
+  function refresh() {
+    const start = firstMonth + Number(startMonthInput.value)
+    const end = firstMonth + Number(endMonthInput.value)
+    snapshots = allSnapshots.filter(snapshot => {
+      const month = timestampMonth(snapshot.timestamp)
+      return month >= start && month <= end
+    })
+    getElement('summary').textContent = `${snapshots.length} stops · ${report.unique_rust_blobs.toLocaleString()} unique Rust file versions · ${report.elapsed_seconds.toFixed(2)}s`
+    draw()
+    drawTable()
+    getElement('table').hidden = document.getElementById('hide-tables').checked
+  }
+  refresh()
+  return { refresh, table: getElement('table') }
+}
+const charts = reports.map(renderRepository)
+const refreshPlots = () => charts.forEach(chart => chart.refresh())
+for (const item of series) {
+  const label = document.createElement('label')
+  label.style.color = item.color
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = enabled.has(item.key)
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) enabled.add(item.key)
+    else enabled.delete(item.key)
+    savePreferences()
+    refreshPlots()
+  })
+  label.append(checkbox, document.createTextNode(item.name))
+  document.getElementById('controls').append(label)
+}
+for (const identifier of ['percentage-mode', 'axis-mode', 'compact-mode', 'hide-points']) {
+  document.getElementById(identifier).addEventListener('change', () => {
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const identifier of ['start-month', 'end-month']) {
+  document.getElementById(identifier).addEventListener('input', () => {
+    rangePreset = null
+    updateDateRange(identifier)
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const [label, months] of [['Last 2 months', 2], ['Last 6 months', 6], ['Last 12 months', 12], ['Last 2 years', 24], ['All time', 0]]) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.textContent = label
+  button.addEventListener('click', () => {
+    rangePreset = months
+    startMonthInput.value = String(months ? Math.max(0, monthCount - months + 1) : 0)
+    endMonthInput.value = String(monthCount)
+    updateDateRange()
+    savePreferences()
+    refreshPlots()
+  })
+  document.getElementById('date-presets').append(button)
+}
+document.getElementById('hide-tables').addEventListener('change', () => {
+  const hidden = document.getElementById('hide-tables').checked
+  savePreferences()
+  charts.forEach(chart => { chart.table.hidden = hidden })
+})
+document.getElementById('download').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(reportDocument, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'report.json'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+})
+</script>
+</html>

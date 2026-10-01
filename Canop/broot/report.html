@@ -1,0 +1,2971 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coogles · Rust history</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #11151d; color: #e8edf5 }
+html { scroll-behavior: smooth }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { max-width: 1100px; margin: 32px auto; padding: 0 20px }
+h1 { margin-bottom: 8px } h2 { overflow-wrap: anywhere } p { color: #aebcd0; line-height: 1.5 }
+a { color: #69c7ff }
+#repository-links { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-left: 20px }
+section { margin: 40px 0 64px; scroll-margin-top: 20px }
+section.compact { margin: 12px 0 }
+section.compact h2 { font-size: 18px; margin: 0 0 8px }
+section.compact .detail, section.compact [data-element="warning"] { display: none }
+[data-element="warning"]:empty { display: none }
+.controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0 }
+.options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px }
+#date-range { margin: 16px 0; max-width: 480px }
+#date-presets { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px }
+#date-presets button { flex: 0 0 auto; white-space: nowrap; padding: 6px 8px; font-size: 12px }
+.range-values { display: flex; justify-content: space-between; gap: 12px; font-size: 13px }
+.range-values span { display: block; margin-top: 4px }
+.range-slider { position: relative; height: 32px; margin-top: 8px }
+.range-track, #range-selected { position: absolute; top: 14px; height: 4px; border-radius: 4px }
+.range-track { left: 0; width: 100%; background: #344056 }
+#range-selected { background: #69c7ff }
+.range-slider input { position: absolute; top: 0; left: 0; width: 100%; height: 32px; margin: 0; background: transparent; appearance: none; pointer-events: none }
+.range-slider input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-track { background: transparent }
+.range-slider input:focus-visible { outline: 2px solid #69c7ff; outline-offset: 4px }
+label { cursor: pointer } input { margin-right: 8px }
+select { margin-left: 8px; padding: 6px; background: #27354b; color: #e8edf5; border: 1px solid #344056; border-radius: 6px }
+svg { width: 100%; background: #191f2b; border-radius: 12px }
+text { fill: #aebcd0; font-size: 13px }
+.grid { stroke: #344056; stroke-width: 1 }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+th, td { padding: 10px; border-bottom: 1px solid #344056; text-align: right }
+th:first-child, td:first-child { text-align: left }
+.scroll { overflow-x: auto } .detail { min-height: 1.5em }
+button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer }
+@media (min-width: 1100px) {
+  :root { --sidebar-width: clamp(224px, calc((100vw - 1000px) / 2), 672px) }
+  body { margin: 32px auto; width: calc(100% - 2 * var(--sidebar-width) - 80px); max-width: 1100px; box-sizing: border-box }
+  #plot-options { position: fixed; top: 32px; left: 20px; width: var(--sidebar-width); max-height: calc(100vh - 64px); overflow-y: auto; box-sizing: border-box; padding: 16px; background: #191f2b; border: 1px solid #344056; border-radius: 12px; font-size: 14px }
+  #plot-options .controls { flex-direction: column; gap: 14px; margin: 0 0 24px }
+  #plot-options .options { flex-direction: column; align-items: stretch; gap: 14px }
+  #plot-options select { display: block; width: 100%; margin: 8px 0 0 }
+  #plot-options #download { width: 100% }
+  #plot-options #date-range { max-width: none }
+}
+</style>
+<h1 id="top">Coogles</h1>
+<nav aria-label="Repositories"><ul id="repository-links"></ul></nav>
+<aside id="plot-options" aria-label="Plot controls">
+<div class="controls" id="controls"></div>
+<div class="options"><label>X axis <select id="axis-mode"><option value="commits">Commit distance</option><option value="time-1week">Time (every week)</option><option value="time">Time (every 2 weeks)</option><option value="time-4weeks">Time (every 4 weeks)</option></select></label> <label><input id="percentage-mode" type="checkbox">Percentage mode</label> <label><input id="hide-tables" type="checkbox">Hide commit tables</label> <label><input id="compact-mode" type="checkbox">Compact</label> <label><input id="hide-points" type="checkbox">Hide points</label></div>
+<div id="date-range">
+<div class="range-values"><label for="start-month">From<span id="start-month-label"></span></label><label for="end-month">To<span id="end-month-label"></span></label></div>
+<div class="range-slider"><div class="range-track"></div><div id="range-selected"></div><input id="start-month" type="range" min="0" max="0" value="0" step="1"><input id="end-month" type="range" min="0" max="0" value="0" step="1"></div>
+<div id="date-presets"></div>
+</div>
+<button id="download">Download JSON</button>
+</aside>
+<main id="repositories"></main>
+<template id="repository-template">
+<h2><a data-element="heading"></a></h2>
+<p data-element="summary"></p>
+<svg data-element="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
+<p class="detail" data-element="detail" aria-live="polite"></p>
+<p data-element="warning"></p>
+<div class="scroll" data-element="table"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Source code</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody data-element="rows"></tbody></table></div>
+</template>
+<script type="application/json" id="report">{
+  "schema_version": 1,
+  "repository": "/home/marc/Projects/coogles/trunk/data/Canop/broot",
+  "head": "54d8dce51554af6a70184bdfbb278c4758aa09fc",
+  "configuration": {
+    "commits": 1744,
+    "requested_commits": null,
+    "all": true,
+    "history_truncated": false,
+    "shallow_boundary": false,
+    "offsets": [
+      0,
+      17,
+      35,
+      52,
+      70,
+      88,
+      105,
+      123,
+      140,
+      158,
+      176,
+      193,
+      211,
+      229,
+      246,
+      264,
+      281,
+      299,
+      317,
+      334,
+      352,
+      369,
+      387,
+      405,
+      422,
+      440,
+      458,
+      475,
+      493,
+      510,
+      528,
+      546,
+      563,
+      581,
+      598,
+      616,
+      634,
+      651,
+      669,
+      687,
+      704,
+      722,
+      739,
+      757,
+      775,
+      792,
+      810,
+      827,
+      845,
+      863,
+      880,
+      898,
+      916,
+      933,
+      951,
+      968,
+      986,
+      1004,
+      1021,
+      1039,
+      1056,
+      1074,
+      1092,
+      1109,
+      1127,
+      1145,
+      1162,
+      1180,
+      1197,
+      1215,
+      1233,
+      1250,
+      1268,
+      1285,
+      1303,
+      1321,
+      1338,
+      1356,
+      1374,
+      1391,
+      1409,
+      1426,
+      1444,
+      1462,
+      1479,
+      1497,
+      1514,
+      1532,
+      1550,
+      1567,
+      1585,
+      1603,
+      1620,
+      1638,
+      1655,
+      1673,
+      1691,
+      1708,
+      1726,
+      1744
+    ],
+    "traversal": "first-parent",
+    "includes_head": true
+  },
+  "definitions": "Physical nonblank code lines, excluding comments. Source code excludes test code and example code, with overlapping categories excluded only once. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
+  "unique_rust_blobs": 3265,
+  "analyzed_bytes": 24108929,
+  "elapsed_seconds": 4.524200403,
+  "snapshots": [
+    {
+      "commit": "54d8dce51554af6a70184bdfbb278c4758aa09fc",
+      "offset": 0,
+      "timestamp": 1790750293,
+      "metrics": {
+        "rust_files": 230,
+        "code_loc": 34873,
+        "source_code_loc": 32362,
+        "test_code_loc": 2511,
+        "comment_loc": 1787,
+        "doc_loc": 2045,
+        "inner_doc_loc": 97,
+        "outer_doc_loc": 1948,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f433416c4c1aaf8c0ab1e94559a8a7e9c68732d7",
+      "offset": 17,
+      "timestamp": 1788894435,
+      "metrics": {
+        "rust_files": 236,
+        "code_loc": 35157,
+        "source_code_loc": 32822,
+        "test_code_loc": 2335,
+        "comment_loc": 1833,
+        "doc_loc": 2041,
+        "inner_doc_loc": 96,
+        "outer_doc_loc": 1945,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4e73ac129cdf10753bffad77ebaebdc894b4dc32",
+      "offset": 35,
+      "timestamp": 1788101125,
+      "metrics": {
+        "rust_files": 234,
+        "code_loc": 34257,
+        "source_code_loc": 32204,
+        "test_code_loc": 2053,
+        "comment_loc": 1790,
+        "doc_loc": 1961,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1866,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4ead7738e73a4dc9418bdd267d6e8c540c9a3fe3",
+      "offset": 52,
+      "timestamp": 1787080424,
+      "metrics": {
+        "rust_files": 225,
+        "code_loc": 31528,
+        "source_code_loc": 30367,
+        "test_code_loc": 1161,
+        "comment_loc": 1599,
+        "doc_loc": 1642,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1547,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b6729a90598afff1e7839e55e431c6838337e8d9",
+      "offset": 70,
+      "timestamp": 1783780152,
+      "metrics": {
+        "rust_files": 225,
+        "code_loc": 31211,
+        "source_code_loc": 30307,
+        "test_code_loc": 904,
+        "comment_loc": 1550,
+        "doc_loc": 1592,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1497,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8040ae3ef5b927bc00636f53af411f771ba71726",
+      "offset": 88,
+      "timestamp": 1779000980,
+      "metrics": {
+        "rust_files": 225,
+        "code_loc": 31130,
+        "source_code_loc": 30271,
+        "test_code_loc": 859,
+        "comment_loc": 1554,
+        "doc_loc": 1565,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1470,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3fd29ff6758c4decf148178d2dda59b7c2406d31",
+      "offset": 105,
+      "timestamp": 1773994389,
+      "metrics": {
+        "rust_files": 225,
+        "code_loc": 31028,
+        "source_code_loc": 30169,
+        "test_code_loc": 859,
+        "comment_loc": 1552,
+        "doc_loc": 1561,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1466,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "51da5733abe4e0880ddffbcb8aeda637f8592aa0",
+      "offset": 123,
+      "timestamp": 1769619960,
+      "metrics": {
+        "rust_files": 221,
+        "code_loc": 30387,
+        "source_code_loc": 29529,
+        "test_code_loc": 858,
+        "comment_loc": 1496,
+        "doc_loc": 1519,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1424,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8545e62feca3499b06e838fe6c16b630ba782984",
+      "offset": 140,
+      "timestamp": 1766386776,
+      "metrics": {
+        "rust_files": 221,
+        "code_loc": 30361,
+        "source_code_loc": 29503,
+        "test_code_loc": 858,
+        "comment_loc": 1496,
+        "doc_loc": 1510,
+        "inner_doc_loc": 95,
+        "outer_doc_loc": 1415,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "75d5b792251bca53e38bf7cefa3a601b902f4315",
+      "offset": 158,
+      "timestamp": 1762457841,
+      "metrics": {
+        "rust_files": 221,
+        "code_loc": 30228,
+        "source_code_loc": 29443,
+        "test_code_loc": 785,
+        "comment_loc": 1489,
+        "doc_loc": 1503,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1412,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "970b70022e318b43462d8c2895336fd6002bb111",
+      "offset": 176,
+      "timestamp": 1761560529,
+      "metrics": {
+        "rust_files": 221,
+        "code_loc": 30229,
+        "source_code_loc": 29444,
+        "test_code_loc": 785,
+        "comment_loc": 1487,
+        "doc_loc": 1499,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1408,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "59ee1a7ef2f272cd54936ee2dbcd7b41e19e0c3b",
+      "offset": 193,
+      "timestamp": 1758820461,
+      "metrics": {
+        "rust_files": 220,
+        "code_loc": 29860,
+        "source_code_loc": 29075,
+        "test_code_loc": 785,
+        "comment_loc": 1473,
+        "doc_loc": 1488,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1397,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3d876b332fd2ce23bc7390198cf6e5f47b0e3ca8",
+      "offset": 211,
+      "timestamp": 1757915952,
+      "metrics": {
+        "rust_files": 219,
+        "code_loc": 29481,
+        "source_code_loc": 28696,
+        "test_code_loc": 785,
+        "comment_loc": 1470,
+        "doc_loc": 1465,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1374,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1e1868ff04808d87389f5bc61f26ecb8e338d909",
+      "offset": 229,
+      "timestamp": 1756401546,
+      "metrics": {
+        "rust_files": 218,
+        "code_loc": 28279,
+        "source_code_loc": 27364,
+        "test_code_loc": 915,
+        "comment_loc": 1453,
+        "doc_loc": 1449,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1358,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0172f1c8cc07e78aa7514a748d99f18bc403d80d",
+      "offset": 246,
+      "timestamp": 1748179406,
+      "metrics": {
+        "rust_files": 212,
+        "code_loc": 27613,
+        "source_code_loc": 26698,
+        "test_code_loc": 915,
+        "comment_loc": 1445,
+        "doc_loc": 1434,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1343,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7bea732df1bc58e01cd39d84c47bda7a32e0d68f",
+      "offset": 264,
+      "timestamp": 1744811466,
+      "metrics": {
+        "rust_files": 212,
+        "code_loc": 27623,
+        "source_code_loc": 26708,
+        "test_code_loc": 915,
+        "comment_loc": 1444,
+        "doc_loc": 1434,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1343,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0e576011a08cd190b23906a7fb4b0065af138d21",
+      "offset": 281,
+      "timestamp": 1737576562,
+      "metrics": {
+        "rust_files": 212,
+        "code_loc": 27464,
+        "source_code_loc": 26549,
+        "test_code_loc": 915,
+        "comment_loc": 1440,
+        "doc_loc": 1426,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1335,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "db0fd941e13d96fbb3e9c3afbab8fd3b74d88d14",
+      "offset": 299,
+      "timestamp": 1731741162,
+      "metrics": {
+        "rust_files": 212,
+        "code_loc": 27448,
+        "source_code_loc": 26533,
+        "test_code_loc": 915,
+        "comment_loc": 1439,
+        "doc_loc": 1422,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1331,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "96cb8b9517fb7b0e0d73e04333482dc3ce952927",
+      "offset": 317,
+      "timestamp": 1727296374,
+      "metrics": {
+        "rust_files": 212,
+        "code_loc": 27347,
+        "source_code_loc": 26432,
+        "test_code_loc": 915,
+        "comment_loc": 1419,
+        "doc_loc": 1418,
+        "inner_doc_loc": 91,
+        "outer_doc_loc": 1327,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b9b3a6f58362a4f873cc71eef0ad4dca923bbdbc",
+      "offset": 334,
+      "timestamp": 1723967902,
+      "metrics": {
+        "rust_files": 208,
+        "code_loc": 26699,
+        "source_code_loc": 25879,
+        "test_code_loc": 820,
+        "comment_loc": 1398,
+        "doc_loc": 1389,
+        "inner_doc_loc": 88,
+        "outer_doc_loc": 1301,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f5f6ade83e4d7bc1cc37d78e2ed13e18073618dc",
+      "offset": 352,
+      "timestamp": 1722783387,
+      "metrics": {
+        "rust_files": 208,
+        "code_loc": 26649,
+        "source_code_loc": 25829,
+        "test_code_loc": 820,
+        "comment_loc": 1402,
+        "doc_loc": 1373,
+        "inner_doc_loc": 88,
+        "outer_doc_loc": 1285,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "081aa69d220ad763112969b0b3ad4ea8d54d7867",
+      "offset": 369,
+      "timestamp": 1721110723,
+      "metrics": {
+        "rust_files": 207,
+        "code_loc": 26302,
+        "source_code_loc": 25492,
+        "test_code_loc": 810,
+        "comment_loc": 1370,
+        "doc_loc": 1356,
+        "inner_doc_loc": 85,
+        "outer_doc_loc": 1271,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "fc05ea77cfeb31f862bd1aecd28ec1ebb322a9a8",
+      "offset": 387,
+      "timestamp": 1720108655,
+      "metrics": {
+        "rust_files": 206,
+        "code_loc": 25992,
+        "source_code_loc": 25182,
+        "test_code_loc": 810,
+        "comment_loc": 1366,
+        "doc_loc": 1334,
+        "inner_doc_loc": 85,
+        "outer_doc_loc": 1249,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "719547fc2d8f7a209dac904da4ea6b2ae935db10",
+      "offset": 405,
+      "timestamp": 1712419303,
+      "metrics": {
+        "rust_files": 204,
+        "code_loc": 24972,
+        "source_code_loc": 24214,
+        "test_code_loc": 758,
+        "comment_loc": 1340,
+        "doc_loc": 1300,
+        "inner_doc_loc": 85,
+        "outer_doc_loc": 1215,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3c8942a7aa094b1606b43b714fbd9586464e22e9",
+      "offset": 422,
+      "timestamp": 1709034702,
+      "metrics": {
+        "rust_files": 205,
+        "code_loc": 24989,
+        "source_code_loc": 24231,
+        "test_code_loc": 758,
+        "comment_loc": 1340,
+        "doc_loc": 1301,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1215,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/nerdfont/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/nerdfont/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/nerdfont/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 3:1",
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "15a8b5acfa8e80acbf024ee08e45f9ebbad5403b",
+      "offset": 440,
+      "timestamp": 1706724722,
+      "metrics": {
+        "rust_files": 199,
+        "code_loc": 23194,
+        "source_code_loc": 22436,
+        "test_code_loc": 758,
+        "comment_loc": 932,
+        "doc_loc": 1274,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1188,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "870f840f880922bccf038474650f5a637f42cc49",
+      "offset": 458,
+      "timestamp": 1701500336,
+      "metrics": {
+        "rust_files": 199,
+        "code_loc": 23155,
+        "source_code_loc": 22397,
+        "test_code_loc": 758,
+        "comment_loc": 930,
+        "doc_loc": 1271,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1185,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4856d360c83ca0ac6a341afa577ec3e875de113c",
+      "offset": 475,
+      "timestamp": 1699277044,
+      "metrics": {
+        "rust_files": 197,
+        "code_loc": 22963,
+        "source_code_loc": 22205,
+        "test_code_loc": 758,
+        "comment_loc": 919,
+        "doc_loc": 1258,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1172,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9f36e50b722c7dc62405a7fb019e06f234c8631e",
+      "offset": 493,
+      "timestamp": 1696090125,
+      "metrics": {
+        "rust_files": 195,
+        "code_loc": 22825,
+        "source_code_loc": 22067,
+        "test_code_loc": 758,
+        "comment_loc": 913,
+        "doc_loc": 1245,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1159,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1b5c1838b3a533cab390def547ef5cfb892c47f3",
+      "offset": 510,
+      "timestamp": 1694248967,
+      "metrics": {
+        "rust_files": 196,
+        "code_loc": 22641,
+        "source_code_loc": 21896,
+        "test_code_loc": 745,
+        "comment_loc": 897,
+        "doc_loc": 1231,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1145,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "180abce49dd55cb101a717732a235ea5cb2b4c2e",
+      "offset": 528,
+      "timestamp": 1689486089,
+      "metrics": {
+        "rust_files": 197,
+        "code_loc": 22683,
+        "source_code_loc": 21990,
+        "test_code_loc": 693,
+        "comment_loc": 900,
+        "doc_loc": 1240,
+        "inner_doc_loc": 86,
+        "outer_doc_loc": 1154,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "685b3b1f854fdd15c491268ab936401fd553353b",
+      "offset": 546,
+      "timestamp": 1686915777,
+      "metrics": {
+        "rust_files": 196,
+        "code_loc": 22522,
+        "source_code_loc": 21862,
+        "test_code_loc": 660,
+        "comment_loc": 902,
+        "doc_loc": 1216,
+        "inner_doc_loc": 72,
+        "outer_doc_loc": 1144,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "36677206581d6aa3d80e71a74706209b99c282f6",
+      "offset": 563,
+      "timestamp": 1684470330,
+      "metrics": {
+        "rust_files": 195,
+        "code_loc": 22391,
+        "source_code_loc": 21742,
+        "test_code_loc": 649,
+        "comment_loc": 900,
+        "doc_loc": 1210,
+        "inner_doc_loc": 72,
+        "outer_doc_loc": 1138,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e18ed9f8815e237d997e2f7de99536e4c51e3929",
+      "offset": 581,
+      "timestamp": 1677777266,
+      "metrics": {
+        "rust_files": 195,
+        "code_loc": 22299,
+        "source_code_loc": 21650,
+        "test_code_loc": 649,
+        "comment_loc": 894,
+        "doc_loc": 1207,
+        "inner_doc_loc": 72,
+        "outer_doc_loc": 1135,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a8360074d5d77ad3e2714249e7462ce12e5fc76a",
+      "offset": 598,
+      "timestamp": 1674989547,
+      "metrics": {
+        "rust_files": 194,
+        "code_loc": 22116,
+        "source_code_loc": 21461,
+        "test_code_loc": 655,
+        "comment_loc": 892,
+        "doc_loc": 1205,
+        "inner_doc_loc": 72,
+        "outer_doc_loc": 1133,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e4097c9d09b6df41203b0ca99fc3b728a0ca8970",
+      "offset": 616,
+      "timestamp": 1671116250,
+      "metrics": {
+        "rust_files": 191,
+        "code_loc": 21695,
+        "source_code_loc": 21040,
+        "test_code_loc": 655,
+        "comment_loc": 894,
+        "doc_loc": 1176,
+        "inner_doc_loc": 59,
+        "outer_doc_loc": 1117,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bdf97edcb9371caffc61174b6b7a58fd8118cc8e",
+      "offset": 634,
+      "timestamp": 1664906793,
+      "metrics": {
+        "rust_files": 190,
+        "code_loc": 21585,
+        "source_code_loc": 20937,
+        "test_code_loc": 648,
+        "comment_loc": 894,
+        "doc_loc": 1174,
+        "inner_doc_loc": 59,
+        "outer_doc_loc": 1115,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3474c157ec41cc9fc17b4923903737faddcc87d8",
+      "offset": 651,
+      "timestamp": 1662360901,
+      "metrics": {
+        "rust_files": 189,
+        "code_loc": 21030,
+        "source_code_loc": 20585,
+        "test_code_loc": 445,
+        "comment_loc": 842,
+        "doc_loc": 1160,
+        "inner_doc_loc": 58,
+        "outer_doc_loc": 1102,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4bab33f4ddcf89f738bdad2980819895f2d3c4f8",
+      "offset": 669,
+      "timestamp": 1656962949,
+      "metrics": {
+        "rust_files": 189,
+        "code_loc": 20926,
+        "source_code_loc": 20481,
+        "test_code_loc": 445,
+        "comment_loc": 823,
+        "doc_loc": 1152,
+        "inner_doc_loc": 58,
+        "outer_doc_loc": 1094,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ab14c365e3844c232f0e8930d602600d00c25005",
+      "offset": 687,
+      "timestamp": 1654625349,
+      "metrics": {
+        "rust_files": 185,
+        "code_loc": 20692,
+        "source_code_loc": 20243,
+        "test_code_loc": 449,
+        "comment_loc": 834,
+        "doc_loc": 1109,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 1055,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4e07db85f341dc00870356cd564990ceac48c8a0",
+      "offset": 704,
+      "timestamp": 1649012671,
+      "metrics": {
+        "rust_files": 183,
+        "code_loc": 20528,
+        "source_code_loc": 20095,
+        "test_code_loc": 433,
+        "comment_loc": 837,
+        "doc_loc": 1101,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 1047,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "af3a1f3c3290f6b88c748bde656ef99ada1f3c7b",
+      "offset": 722,
+      "timestamp": 1644941646,
+      "metrics": {
+        "rust_files": 183,
+        "code_loc": 20412,
+        "source_code_loc": 19979,
+        "test_code_loc": 433,
+        "comment_loc": 837,
+        "doc_loc": 1098,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 1044,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "71aa0be13f58986276496defac2206ed58df82df",
+      "offset": 739,
+      "timestamp": 1641481473,
+      "metrics": {
+        "rust_files": 184,
+        "code_loc": 20505,
+        "source_code_loc": 20041,
+        "test_code_loc": 464,
+        "comment_loc": 837,
+        "doc_loc": 1116,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 1061,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ffaa167cfcc97f5197e9291a88918cbf889c9f08",
+      "offset": 757,
+      "timestamp": 1638307031,
+      "metrics": {
+        "rust_files": 182,
+        "code_loc": 20353,
+        "source_code_loc": 19889,
+        "test_code_loc": 464,
+        "comment_loc": 823,
+        "doc_loc": 1098,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1046,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "21e4e12ab670b0c585e062c3f4178906a7315d47",
+      "offset": 775,
+      "timestamp": 1634747632,
+      "metrics": {
+        "rust_files": 182,
+        "code_loc": 20297,
+        "source_code_loc": 19833,
+        "test_code_loc": 464,
+        "comment_loc": 817,
+        "doc_loc": 1098,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1046,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c9b840fd85e7eb6393dbb52f4ba3b35cf2f831e7",
+      "offset": 792,
+      "timestamp": 1628679507,
+      "metrics": {
+        "rust_files": 184,
+        "code_loc": 20448,
+        "source_code_loc": 19984,
+        "test_code_loc": 464,
+        "comment_loc": 808,
+        "doc_loc": 1101,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1049,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a8f118e0564963635539ccec3b99abbd9c6332d3",
+      "offset": 810,
+      "timestamp": 1624707350,
+      "metrics": {
+        "rust_files": 184,
+        "code_loc": 20352,
+        "source_code_loc": 19888,
+        "test_code_loc": 464,
+        "comment_loc": 807,
+        "doc_loc": 1098,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1046,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "dec7324fd505e41decf152492ae4942ffed36db0",
+      "offset": 827,
+      "timestamp": 1623595544,
+      "metrics": {
+        "rust_files": 184,
+        "code_loc": 20283,
+        "source_code_loc": 19819,
+        "test_code_loc": 464,
+        "comment_loc": 813,
+        "doc_loc": 1090,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1038,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "adf2fe828a6fc5e00a73ace3058df39a248bb8c8",
+      "offset": 845,
+      "timestamp": 1622393410,
+      "metrics": {
+        "rust_files": 183,
+        "code_loc": 20049,
+        "source_code_loc": 19595,
+        "test_code_loc": 454,
+        "comment_loc": 811,
+        "doc_loc": 1071,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1019,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1ec2340d8b5fff9381b5481b1b2b3accbb7bdc12",
+      "offset": 863,
+      "timestamp": 1620575687,
+      "metrics": {
+        "rust_files": 183,
+        "code_loc": 19864,
+        "source_code_loc": 19415,
+        "test_code_loc": 449,
+        "comment_loc": 799,
+        "doc_loc": 1061,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 1009,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "99b7fb72f15b11d49e0ead4f7b12eda59ea78f1b",
+      "offset": 880,
+      "timestamp": 1619802650,
+      "metrics": {
+        "rust_files": 180,
+        "code_loc": 19395,
+        "source_code_loc": 19031,
+        "test_code_loc": 364,
+        "comment_loc": 781,
+        "doc_loc": 1033,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 981,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "75ee6c28b082dd3e5ff095f1dcd053dbdc0fa972",
+      "offset": 898,
+      "timestamp": 1616424118,
+      "metrics": {
+        "rust_files": 173,
+        "code_loc": 18084,
+        "source_code_loc": 17720,
+        "test_code_loc": 364,
+        "comment_loc": 735,
+        "doc_loc": 989,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 937,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a965b995fc845e9404e018ff6ccb40fcc8a2adf0",
+      "offset": 916,
+      "timestamp": 1614952049,
+      "metrics": {
+        "rust_files": 170,
+        "code_loc": 17897,
+        "source_code_loc": 17634,
+        "test_code_loc": 263,
+        "comment_loc": 727,
+        "doc_loc": 976,
+        "inner_doc_loc": 52,
+        "outer_doc_loc": 924,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "df9c63511c7d80f6e147fdf410af0eeda9be8ba3",
+      "offset": 933,
+      "timestamp": 1614008582,
+      "metrics": {
+        "rust_files": 169,
+        "code_loc": 18287,
+        "source_code_loc": 17985,
+        "test_code_loc": 302,
+        "comment_loc": 721,
+        "doc_loc": 981,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 931,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "46cfd1db5339613d2edf0207c4a0fc77dff01c0c",
+      "offset": 951,
+      "timestamp": 1611818574,
+      "metrics": {
+        "rust_files": 169,
+        "code_loc": 18230,
+        "source_code_loc": 17928,
+        "test_code_loc": 302,
+        "comment_loc": 719,
+        "doc_loc": 987,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 937,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5976582336094c612534ae8d97952b067c508255",
+      "offset": 968,
+      "timestamp": 1610041932,
+      "metrics": {
+        "rust_files": 169,
+        "code_loc": 17953,
+        "source_code_loc": 17708,
+        "test_code_loc": 245,
+        "comment_loc": 703,
+        "doc_loc": 980,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 930,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c067d1537d36e51d3012b5d8da584ac80fc6602b",
+      "offset": 986,
+      "timestamp": 1607949312,
+      "metrics": {
+        "rust_files": 167,
+        "code_loc": 17649,
+        "source_code_loc": 17471,
+        "test_code_loc": 178,
+        "comment_loc": 700,
+        "doc_loc": 978,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 928,
+        "block_comment_loc": 4,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ae54814e7fdf7ed1b2b013ddb4b2785cbbadaf67",
+      "offset": 1004,
+      "timestamp": 1605803189,
+      "metrics": {
+        "rust_files": 165,
+        "code_loc": 17065,
+        "source_code_loc": 16887,
+        "test_code_loc": 178,
+        "comment_loc": 694,
+        "doc_loc": 932,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 882,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "resources/icons/vscode/data/double_extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/extension_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 2:1",
+        "resources/icons/vscode/data/file_name_to_icon_name_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "resources/icons/vscode/data/icon_name_to_icon_code_point_map.rs: expected one of: `fn`, `extern`, `use`, `static`, `const`, `unsafe`, `mod`, `type`, `struct`, `enum`, `union`, `trait`, `auto`, `impl`, `default`, `macro`, identifier, `self`, `super`, `crate`, `::` at 1:1",
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d0ec761893a9080d1c2cbb64edad861791ec9e74",
+      "offset": 1021,
+      "timestamp": 1603454934,
+      "metrics": {
+        "rust_files": 154,
+        "code_loc": 15321,
+        "source_code_loc": 15116,
+        "test_code_loc": 205,
+        "comment_loc": 690,
+        "doc_loc": 929,
+        "inner_doc_loc": 50,
+        "outer_doc_loc": 879,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/filesystems/mount_view.rs: cannot parse string into token stream at 36:55"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ae7ec697ce12c64d5ff295921822cf984a7e08bb",
+      "offset": 1039,
+      "timestamp": 1601994229,
+      "metrics": {
+        "rust_files": 148,
+        "code_loc": 14215,
+        "source_code_loc": 14037,
+        "test_code_loc": 178,
+        "comment_loc": 633,
+        "doc_loc": 905,
+        "inner_doc_loc": 48,
+        "outer_doc_loc": 857,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "59b8f5174505bef2cb96ad1c3a67010c03131f83",
+      "offset": 1056,
+      "timestamp": 1601217124,
+      "metrics": {
+        "rust_files": 142,
+        "code_loc": 13787,
+        "source_code_loc": 13609,
+        "test_code_loc": 178,
+        "comment_loc": 623,
+        "doc_loc": 881,
+        "inner_doc_loc": 45,
+        "outer_doc_loc": 836,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bca6c4c48475498269bdfdee92a4e46d54ee2e59",
+      "offset": 1074,
+      "timestamp": 1597859982,
+      "metrics": {
+        "rust_files": 141,
+        "code_loc": 13565,
+        "source_code_loc": 13350,
+        "test_code_loc": 215,
+        "comment_loc": 627,
+        "doc_loc": 808,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 753,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b30e8affeb866e72581e92152e0f94e55cac6793",
+      "offset": 1092,
+      "timestamp": 1596265368,
+      "metrics": {
+        "rust_files": 138,
+        "code_loc": 13043,
+        "source_code_loc": 12828,
+        "test_code_loc": 215,
+        "comment_loc": 621,
+        "doc_loc": 751,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 696,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4cf0e4652780d4ace522e23b8f4c0ced378dd528",
+      "offset": 1109,
+      "timestamp": 1595623641,
+      "metrics": {
+        "rust_files": 137,
+        "code_loc": 12748,
+        "source_code_loc": 12533,
+        "test_code_loc": 215,
+        "comment_loc": 592,
+        "doc_loc": 730,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 675,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d198f840c44118bc7e9af0bd03c2db9bcb1d699f",
+      "offset": 1127,
+      "timestamp": 1594756692,
+      "metrics": {
+        "rust_files": 133,
+        "code_loc": 11926,
+        "source_code_loc": 11711,
+        "test_code_loc": 215,
+        "comment_loc": 585,
+        "doc_loc": 721,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 666,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1361f19fdd5a5d9dfda2d2b49b9268da51ee48b5",
+      "offset": 1145,
+      "timestamp": 1593778036,
+      "metrics": {
+        "rust_files": 118,
+        "code_loc": 10833,
+        "source_code_loc": 10655,
+        "test_code_loc": 178,
+        "comment_loc": 543,
+        "doc_loc": 701,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 646,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1ab38d3bf03fb32770963868264610abbdafab2b",
+      "offset": 1162,
+      "timestamp": 1593153318,
+      "metrics": {
+        "rust_files": 116,
+        "code_loc": 10583,
+        "source_code_loc": 10405,
+        "test_code_loc": 178,
+        "comment_loc": 528,
+        "doc_loc": 691,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 636,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e86f7a82570a4e9f77d094c26041417cb8414f2a",
+      "offset": 1180,
+      "timestamp": 1591972655,
+      "metrics": {
+        "rust_files": 110,
+        "code_loc": 10007,
+        "source_code_loc": 9782,
+        "test_code_loc": 225,
+        "comment_loc": 505,
+        "doc_loc": 659,
+        "inner_doc_loc": 56,
+        "outer_doc_loc": 603,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "96c19d3db5e531dd6909f39b24b26c0b97aa3e4e",
+      "offset": 1197,
+      "timestamp": 1591474948,
+      "metrics": {
+        "rust_files": 105,
+        "code_loc": 9573,
+        "source_code_loc": 9356,
+        "test_code_loc": 217,
+        "comment_loc": 412,
+        "doc_loc": 624,
+        "inner_doc_loc": 56,
+        "outer_doc_loc": 568,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "881ab736bcee425178dbef0424ee2777b478b1f1",
+      "offset": 1215,
+      "timestamp": 1590595012,
+      "metrics": {
+        "rust_files": 97,
+        "code_loc": 9081,
+        "source_code_loc": 8914,
+        "test_code_loc": 167,
+        "comment_loc": 415,
+        "doc_loc": 597,
+        "inner_doc_loc": 64,
+        "outer_doc_loc": 533,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4fc153611b671a793370b83aca1b9c10f51e4388",
+      "offset": 1233,
+      "timestamp": 1589722632,
+      "metrics": {
+        "rust_files": 94,
+        "code_loc": 8293,
+        "source_code_loc": 8130,
+        "test_code_loc": 163,
+        "comment_loc": 391,
+        "doc_loc": 559,
+        "inner_doc_loc": 57,
+        "outer_doc_loc": 502,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "98edb6a09f513a81ad7e2f589ef61316680851a2",
+      "offset": 1250,
+      "timestamp": 1586954777,
+      "metrics": {
+        "rust_files": 78,
+        "code_loc": 7825,
+        "source_code_loc": 7680,
+        "test_code_loc": 145,
+        "comment_loc": 368,
+        "doc_loc": 470,
+        "inner_doc_loc": 67,
+        "outer_doc_loc": 403,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3e2fa238b1068210e27d59582695a12d3694c32d",
+      "offset": 1268,
+      "timestamp": 1584639811,
+      "metrics": {
+        "rust_files": 58,
+        "code_loc": 7286,
+        "source_code_loc": 7128,
+        "test_code_loc": 158,
+        "comment_loc": 379,
+        "doc_loc": 442,
+        "inner_doc_loc": 58,
+        "outer_doc_loc": 384,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0c69639457ec33e510c74df80799455d6b69d181",
+      "offset": 1285,
+      "timestamp": 1580897900,
+      "metrics": {
+        "rust_files": 58,
+        "code_loc": 7244,
+        "source_code_loc": 7086,
+        "test_code_loc": 158,
+        "comment_loc": 373,
+        "doc_loc": 440,
+        "inner_doc_loc": 58,
+        "outer_doc_loc": 382,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "16de01b1714f8862f3b719908d672869f3ee7578",
+      "offset": 1303,
+      "timestamp": 1580237780,
+      "metrics": {
+        "rust_files": 55,
+        "code_loc": 6723,
+        "source_code_loc": 6565,
+        "test_code_loc": 158,
+        "comment_loc": 351,
+        "doc_loc": 384,
+        "inner_doc_loc": 56,
+        "outer_doc_loc": 328,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "40046e8f8ba9303cd35724de7b22e9a50c3c03c5",
+      "offset": 1321,
+      "timestamp": 1579377959,
+      "metrics": {
+        "rust_files": 53,
+        "code_loc": 6386,
+        "source_code_loc": 6262,
+        "test_code_loc": 124,
+        "comment_loc": 321,
+        "doc_loc": 384,
+        "inner_doc_loc": 59,
+        "outer_doc_loc": 325,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9b8781bf17ebcfb044ac54792f57d6c7d140b7d8",
+      "offset": 1338,
+      "timestamp": 1579120980,
+      "metrics": {
+        "rust_files": 53,
+        "code_loc": 6267,
+        "source_code_loc": 6164,
+        "test_code_loc": 103,
+        "comment_loc": 308,
+        "doc_loc": 387,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 333,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5ad5a2a6f0e1395a6cbf3f9dc3d7056e3c82e255",
+      "offset": 1356,
+      "timestamp": 1578778592,
+      "metrics": {
+        "rust_files": 51,
+        "code_loc": 6139,
+        "source_code_loc": 6036,
+        "test_code_loc": 103,
+        "comment_loc": 297,
+        "doc_loc": 376,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 322,
+        "block_comment_loc": 12,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a0477be58aecb84335becf5424802718bf8fbdbf",
+      "offset": 1374,
+      "timestamp": 1578589929,
+      "metrics": {
+        "rust_files": 51,
+        "code_loc": 6084,
+        "source_code_loc": 5981,
+        "test_code_loc": 103,
+        "comment_loc": 293,
+        "doc_loc": 371,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 317,
+        "block_comment_loc": 12,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b11ecc0f0eab0c1a9d9690688204763cb586fad1",
+      "offset": 1391,
+      "timestamp": 1576946836,
+      "metrics": {
+        "rust_files": 52,
+        "code_loc": 6083,
+        "source_code_loc": 5980,
+        "test_code_loc": 103,
+        "comment_loc": 297,
+        "doc_loc": 372,
+        "inner_doc_loc": 54,
+        "outer_doc_loc": 318,
+        "block_comment_loc": 12,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "429c7f15d2c1f3b8705d59646a4fbbbc57f32b30",
+      "offset": 1409,
+      "timestamp": 1575230061,
+      "metrics": {
+        "rust_files": 45,
+        "code_loc": 5655,
+        "source_code_loc": 5551,
+        "test_code_loc": 104,
+        "comment_loc": 285,
+        "doc_loc": 326,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 271,
+        "block_comment_loc": 12,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ffe44da3d289c8a49f1755dc7d2c49042a6d9e4c",
+      "offset": 1426,
+      "timestamp": 1572891380,
+      "metrics": {
+        "rust_files": 41,
+        "code_loc": 5417,
+        "source_code_loc": 5356,
+        "test_code_loc": 61,
+        "comment_loc": 317,
+        "doc_loc": 306,
+        "inner_doc_loc": 57,
+        "outer_doc_loc": 249,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "06e1e703ec022badc7a0e40d7ab7b1fc5f2b32b7",
+      "offset": 1444,
+      "timestamp": 1568565011,
+      "metrics": {
+        "rust_files": 40,
+        "code_loc": 5131,
+        "source_code_loc": 5099,
+        "test_code_loc": 32,
+        "comment_loc": 309,
+        "doc_loc": 245,
+        "inner_doc_loc": 56,
+        "outer_doc_loc": 189,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ec657ff1ec83b7f9a6496f2a51e2c32e8ba6d0cc",
+      "offset": 1462,
+      "timestamp": 1563538979,
+      "metrics": {
+        "rust_files": 41,
+        "code_loc": 4874,
+        "source_code_loc": 4874,
+        "test_code_loc": 0,
+        "comment_loc": 310,
+        "doc_loc": 232,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 177,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1b2807808929177ce6853c8441f4c6dde057db20",
+      "offset": 1479,
+      "timestamp": 1560678085,
+      "metrics": {
+        "rust_files": 41,
+        "code_loc": 4863,
+        "source_code_loc": 4863,
+        "test_code_loc": 0,
+        "comment_loc": 310,
+        "doc_loc": 225,
+        "inner_doc_loc": 55,
+        "outer_doc_loc": 170,
+        "block_comment_loc": 8,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3f09877a70841099775c2dd87959ec5231a2970e",
+      "offset": 1497,
+      "timestamp": 1554219978,
+      "metrics": {
+        "rust_files": 35,
+        "code_loc": 4483,
+        "source_code_loc": 4483,
+        "test_code_loc": 0,
+        "comment_loc": 318,
+        "doc_loc": 169,
+        "inner_doc_loc": 60,
+        "outer_doc_loc": 109,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 54:28",
+        "src/screen_text.rs: expected `,` at 93:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b470aa5f6624ccb1f30fff6d78f096fecd7d45d6",
+      "offset": 1514,
+      "timestamp": 1552326471,
+      "metrics": {
+        "rust_files": 35,
+        "code_loc": 4348,
+        "source_code_loc": 4348,
+        "test_code_loc": 0,
+        "comment_loc": 326,
+        "doc_loc": 133,
+        "inner_doc_loc": 60,
+        "outer_doc_loc": 73,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 54:28",
+        "src/screen_text.rs: expected `,` at 93:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "345a5a8d33370766d51e75bc45f483997ad8421b",
+      "offset": 1532,
+      "timestamp": 1551635355,
+      "metrics": {
+        "rust_files": 35,
+        "code_loc": 4333,
+        "source_code_loc": 4333,
+        "test_code_loc": 0,
+        "comment_loc": 320,
+        "doc_loc": 135,
+        "inner_doc_loc": 60,
+        "outer_doc_loc": 75,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 54:28",
+        "src/screen_text.rs: expected `,` at 93:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3b18189675e2c06f1026c2e9c76a2d662e721623",
+      "offset": 1550,
+      "timestamp": 1550508102,
+      "metrics": {
+        "rust_files": 31,
+        "code_loc": 3931,
+        "source_code_loc": 3931,
+        "test_code_loc": 0,
+        "comment_loc": 305,
+        "doc_loc": 131,
+        "inner_doc_loc": 63,
+        "outer_doc_loc": 68,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 53:28",
+        "src/screen_text.rs: expected `,` at 96:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "644071f3b60cefb0e88288bde8374decac772403",
+      "offset": 1567,
+      "timestamp": 1549989044,
+      "metrics": {
+        "rust_files": 27,
+        "code_loc": 3660,
+        "source_code_loc": 3660,
+        "test_code_loc": 0,
+        "comment_loc": 290,
+        "doc_loc": 126,
+        "inner_doc_loc": 63,
+        "outer_doc_loc": 63,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 54:28",
+        "src/screen_text.rs: expected `,` at 65:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8d29a5df3991279ae8b5f0ad3d12d3e0402ef1e9",
+      "offset": 1585,
+      "timestamp": 1549222334,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 3328,
+        "source_code_loc": 3328,
+        "test_code_loc": 0,
+        "comment_loc": 245,
+        "doc_loc": 93,
+        "inner_doc_loc": 38,
+        "outer_doc_loc": 55,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/browser_states.rs: expected `,` at 45:72",
+        "src/screen_text.rs: expected `,` at 65:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3bd7a88a55d0d4f2a195aa63a9f1b46dad9efe4f",
+      "offset": 1603,
+      "timestamp": 1548625893,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 3209,
+        "source_code_loc": 3209,
+        "test_code_loc": 0,
+        "comment_loc": 222,
+        "doc_loc": 83,
+        "inner_doc_loc": 38,
+        "outer_doc_loc": 45,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "src/screen_text.rs: expected `,` at 65:20"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3e5faa68e74e8c206e91d06d03447c16e2c20b74",
+      "offset": 1620,
+      "timestamp": 1548101983,
+      "metrics": {
+        "rust_files": 22,
+        "code_loc": 2921,
+        "source_code_loc": 2921,
+        "test_code_loc": 0,
+        "comment_loc": 196,
+        "doc_loc": 65,
+        "inner_doc_loc": 27,
+        "outer_doc_loc": 38,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "131c06815e244b8d4cf70850b871e4f0c7961ac6",
+      "offset": 1638,
+      "timestamp": 1547049824,
+      "metrics": {
+        "rust_files": 22,
+        "code_loc": 2782,
+        "source_code_loc": 2782,
+        "test_code_loc": 0,
+        "comment_loc": 169,
+        "doc_loc": 31,
+        "inner_doc_loc": 10,
+        "outer_doc_loc": 21,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "58e523ed7307304bb4c283baf144138131f6307a",
+      "offset": 1655,
+      "timestamp": 1545994618,
+      "metrics": {
+        "rust_files": 20,
+        "code_loc": 2257,
+        "source_code_loc": 2257,
+        "test_code_loc": 0,
+        "comment_loc": 125,
+        "doc_loc": 20,
+        "inner_doc_loc": 10,
+        "outer_doc_loc": 10,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7f20ba12b3f8ad82c5392ba0402a3a9f12bf2975",
+      "offset": 1673,
+      "timestamp": 1544712766,
+      "metrics": {
+        "rust_files": 19,
+        "code_loc": 2033,
+        "source_code_loc": 2033,
+        "test_code_loc": 0,
+        "comment_loc": 109,
+        "doc_loc": 20,
+        "inner_doc_loc": 12,
+        "outer_doc_loc": 8,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "727e957df2112bf67946f8aa6161d895b10100dd",
+      "offset": 1691,
+      "timestamp": 1544202319,
+      "metrics": {
+        "rust_files": 17,
+        "code_loc": 1783,
+        "source_code_loc": 1783,
+        "test_code_loc": 0,
+        "comment_loc": 103,
+        "doc_loc": 15,
+        "inner_doc_loc": 12,
+        "outer_doc_loc": 3,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "65e21dd1e7b44d51a9f3547da64f0ae92d749719",
+      "offset": 1708,
+      "timestamp": 1543583663,
+      "metrics": {
+        "rust_files": 14,
+        "code_loc": 1285,
+        "source_code_loc": 1285,
+        "test_code_loc": 0,
+        "comment_loc": 68,
+        "doc_loc": 10,
+        "inner_doc_loc": 10,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "33b9151e201c9e0c0eb32dd526d706c8dce4d9e2",
+      "offset": 1726,
+      "timestamp": 1542833540,
+      "metrics": {
+        "rust_files": 8,
+        "code_loc": 627,
+        "source_code_loc": 627,
+        "test_code_loc": 0,
+        "comment_loc": 34,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7ab7ed6910cc34ef520fc6074c3f29a0410545da",
+      "offset": 1744,
+      "timestamp": 1542312559,
+      "metrics": {
+        "rust_files": 0,
+        "code_loc": 0,
+        "source_code_loc": 0,
+        "test_code_loc": 0,
+        "comment_loc": 0,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    }
+  ]
+}</script>
+<script>
+const reportDocument = JSON.parse(document.getElementById('report').textContent)
+const reports = reportDocument.repositories || [reportDocument]
+const preferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('coogles.preferences') || '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch { return {} }
+})()
+for (const [identifier, key] of [['hide-tables', 'hideTables'], ['percentage-mode', 'percentageMode'], ['compact-mode', 'compactMode'], ['hide-points', 'hidePoints']]) {
+  if (typeof preferences[key] === 'boolean') document.getElementById(identifier).checked = preferences[key]
+}
+if (typeof preferences.hideTables !== 'boolean') {
+  try {
+    const saved = localStorage.getItem('coogles.hideTables')
+    if (saved !== null) document.getElementById('hide-tables').checked = saved === 'true'
+  } catch {}
+}
+if (['commits', 'time-1week', 'time', 'time-4weeks'].includes(preferences.axisMode)) {
+  document.getElementById('axis-mode').value = preferences.axisMode
+}
+const series = [
+  { key: 'code_loc', name: 'Code (total)', color: '#ff879c' },
+  { key: 'source_code_loc', name: 'Source code', color: '#f0eb83' },
+  { key: 'test_code_loc', name: 'Tests', color: '#69c7ff' },
+  { key: 'comment_loc', name: '// comments', color: '#ffc56a' },
+  { key: 'doc_loc', name: 'Docs (//! + ///)', color: '#ba9aff' },
+  { key: 'example_code_loc', name: 'Examples', color: '#67dfa6' }
+]
+const enabled = new Set(series.filter(item => !Array.isArray(preferences.enabledSeries) || preferences.enabledSeries.includes(item.key)).map(item => item.key))
+function timestampMonth(timestamp) {
+  const date = new Date(timestamp * 1000)
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function formatMonth(month) {
+  const year = Math.floor(month / 12)
+  return `${year}-${String(month - year * 12 + 1).padStart(2, '0')}`
+}
+const months = reports.flatMap(report => report.snapshots.map(snapshot => timestampMonth(snapshot.timestamp)))
+const firstMonth = Math.min(...months)
+const lastMonth = Math.max(...months)
+const monthCount = lastMonth - firstMonth
+const startMonthInput = document.getElementById('start-month')
+const endMonthInput = document.getElementById('end-month')
+for (const input of [startMonthInput, endMonthInput]) {
+  input.max = String(monthCount)
+  input.disabled = monthCount === 0
+}
+startMonthInput.value = '0'
+endMonthInput.value = String(monthCount)
+let rangePreset = [0, 2, 6, 12, 24].includes(preferences.rangePreset) ? preferences.rangePreset : null
+const savedRange = preferences.dateRange
+if (rangePreset !== null) {
+  startMonthInput.value = String(rangePreset ? Math.max(0, monthCount - rangePreset + 1) : 0)
+} else if (savedRange && Number.isInteger(savedRange.start) && Number.isInteger(savedRange.end)
+  && savedRange.start <= savedRange.end && savedRange.end >= firstMonth && savedRange.start <= lastMonth) {
+  startMonthInput.value = String(Math.max(firstMonth, savedRange.start) - firstMonth)
+  endMonthInput.value = String(Math.min(lastMonth, savedRange.end) - firstMonth)
+} else {
+  rangePreset = 0
+}
+function savePreferences() {
+  try {
+    localStorage.setItem('coogles.preferences', JSON.stringify({
+      axisMode: document.getElementById('axis-mode').value,
+      percentageMode: document.getElementById('percentage-mode').checked,
+      compactMode: document.getElementById('compact-mode').checked,
+      hidePoints: document.getElementById('hide-points').checked,
+      hideTables: document.getElementById('hide-tables').checked,
+      enabledSeries: [...enabled],
+      dateRange: { start: firstMonth + Number(startMonthInput.value), end: firstMonth + Number(endMonthInput.value) },
+      rangePreset
+    }))
+  } catch {}
+}
+function updateDateRange(changed) {
+  let start = Number(startMonthInput.value)
+  let end = Number(endMonthInput.value)
+  if (start > end) {
+    if (changed === 'start-month') {
+      end = start
+      endMonthInput.value = String(end)
+    } else {
+      start = end
+      startMonthInput.value = String(start)
+    }
+  }
+  const startLabel = formatMonth(firstMonth + start)
+  const endLabel = formatMonth(firstMonth + end)
+  document.getElementById('start-month-label').textContent = startLabel
+  document.getElementById('end-month-label').textContent = endLabel
+  startMonthInput.setAttribute('aria-valuetext', startLabel)
+  endMonthInput.setAttribute('aria-valuetext', endLabel)
+  const selected = document.getElementById('range-selected')
+  selected.style.left = `${monthCount ? start / monthCount * 100 : 0}%`
+  selected.style.width = `${monthCount ? (end - start) / monthCount * 100 : 100}%`
+}
+updateDateRange()
+const namespace = 'http://www.w3.org/2000/svg'
+function element(tag, attributes, text) {
+  const node = document.createElementNS(namespace, tag)
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value)
+  if (text !== undefined) node.textContent = text
+  return node
+}
+function renderRepository(report, index) {
+  const section = document.createElement('section')
+  section.id = `repository-${index}`
+  section.innerHTML = document.getElementById('repository-template').innerHTML
+  document.getElementById('repositories').append(section)
+  const getElement = identifier => section.querySelector(`[data-element="${identifier}"]`)
+  const parts = report.repository.split('/').filter(Boolean)
+  const dataIndex = parts.lastIndexOf('data')
+  const inferredUrl = dataIndex >= 0 && parts.length >= dataIndex + 3 ? `https://github.com/${parts[dataIndex + 1]}/${parts[dataIndex + 2]}` : null
+  const repositoryUrl = report.repository_url || inferredUrl
+  const repositoryName = repositoryUrl ? repositoryUrl.split('/').slice(-2).join('/') : (parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1])
+  const link = document.createElement('a')
+  link.textContent = repositoryName
+  link.href = `#${section.id}`
+  link.title = report.repository
+  const entry = document.createElement('li')
+  entry.append(link)
+  document.getElementById('repository-links').append(entry)
+  if (repositoryUrl) {
+    getElement('heading').textContent = repositoryName
+    getElement('heading').href = repositoryUrl
+  } else {
+    getElement('heading').textContent = repositoryName
+  }
+  const allSnapshots = [...report.snapshots].reverse()
+  let snapshots = allSnapshots
+  const svg = getElement('plot')
+  function metricValue(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key]
+    return snapshot.metrics.code_loc > 0 ? snapshot.metrics[key] / snapshot.metrics.code_loc * 100 : 0
+  }
+  function formatMetric(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key].toLocaleString()
+    return snapshot.metrics.code_loc > 0 ? `${metricValue(snapshot, key).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : 'N/A'
+  }
+  function draw() {
+    svg.replaceChildren()
+    getElement('detail').textContent = ''
+    const compact = document.getElementById('compact-mode').checked
+    section.className = compact ? 'compact' : ''
+    getElement('summary').hidden = compact
+    const graphHeight = compact ? 440 : 800
+    const plotBottom = graphHeight - 80
+    const plotHeight = plotBottom - 40
+    svg.setAttribute('viewBox', `0 0 1000 ${graphHeight}`)
+    if (snapshots.length === 0) {
+      svg.append(element('text', { x: 500, y: graphHeight / 2, 'text-anchor': 'middle' }, 'No samples in selected months'))
+      return
+    }
+    const visible = series.filter(item => enabled.has(item.key))
+    const percentageMode = document.getElementById('percentage-mode').checked
+    const hidePoints = document.getElementById('hide-points').checked
+    const values = snapshots.flatMap(snapshot => visible.map(item => metricValue(snapshot, item.key)))
+    const highest = Math.max(0, ...values)
+    const percentageStep = highest > 0 ? 10 ** Math.floor(Math.log10(highest)) / 4 : 1
+    const maximum = percentageMode ? Math.max(percentageStep, Math.ceil(highest / percentageStep) * percentageStep) : Math.max(1, highest) * 1.1
+    const percentageDigits = Math.min(6, Math.max(1, 1 - Math.floor(Math.log10(maximum))))
+    svg.setAttribute('aria-label', percentageMode ? 'Rust metrics as percentages of total code over sampled Git history' : 'Rust line counts over sampled Git history')
+    const axisMode = document.getElementById('axis-mode').value
+    const timeMode = axisMode !== 'commits'
+    const weeks = axisMode === 'time-1week' ? 1 : axisMode === 'time-4weeks' ? 4 : 2
+    const plotted = timeMode ? [...snapshots].sort((left, right) => left.timestamp - right.timestamp) : snapshots
+    const oldest = plotted[0].offset
+    const newest = plotted[plotted.length - 1].offset
+    const earliest = plotted[0].timestamp
+    const latest = plotted[plotted.length - 1].timestamp
+    const timePosition = timestamp => earliest === latest ? 530 : 80 + (timestamp - earliest) / (latest - earliest) * 860
+    const positionX = timeMode ? snapshot => timePosition(snapshot.timestamp) :
+      snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
+    const positionY = value => plotBottom - value / maximum * plotHeight
+    const gridSteps = compact ? 4 : 8
+    for (let index = 0; index <= gridSteps; index++) {
+      const value = maximum * index / gridSteps
+      const height = positionY(value)
+      svg.append(element('line', { x1: 80, x2: 940, y1: height, y2: height, class: 'grid' }))
+      svg.append(element('text', { x: 70, y: height + 4, 'text-anchor': 'end' }, percentageMode ? `${value.toLocaleString(undefined, { maximumFractionDigits: percentageDigits })}%` : Math.round(value).toLocaleString()))
+    }
+    if (timeMode) {
+      const interval = weeks * 7 * 24 * 60 * 60
+      const monday = Date.UTC(1970, 0, 5) / 1000
+      const firstTick = monday + Math.ceil((earliest - monday) / interval) * interval
+      const ticks = []
+      for (let timestamp = firstTick; timestamp <= latest; timestamp += interval) ticks.push(timestamp)
+      const labelEvery = Math.max(1, Math.ceil(ticks.length / 7))
+      ticks.forEach((timestamp, index) => {
+        const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
+        const grid = element('line', { x1: timePosition(timestamp), x2: timePosition(timestamp), y1: 40, y2: plotBottom, class: 'grid', 'stroke-opacity': 0.4 })
+        grid.append(element('title', {}, date))
+        svg.append(grid)
+        if (ticks.length >= 2 && index % labelEvery === 0) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, date))
+        }
+      })
+      if (ticks.length < 2) {
+        for (const timestamp of new Set([earliest, latest])) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, new Date(timestamp * 1000).toISOString().slice(0, 10)))
+        }
+      }
+    } else {
+      const labelEvery = Math.max(1, Math.ceil(plotted.length / 10))
+      plotted.forEach((snapshot, index) => {
+        if (index % labelEvery === 0 || index === plotted.length - 1) {
+          svg.append(element('text', { x: positionX(snapshot), y: plotBottom + 29, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+        }
+      })
+    }
+    const axisTitle = timeMode ? `Commit date (UTC) · every ${weeks === 1 ? 'week' : `${weeks} weeks`}` : 'First-parent commit offset from HEAD · oldest to newest'
+    svg.append(element('text', { x: 510, y: graphHeight - 18, 'text-anchor': 'middle' }, axisTitle))
+    for (const item of visible) {
+      const points = plotted.map(snapshot => `${positionX(snapshot)},${positionY(metricValue(snapshot, item.key))}`).join(' ')
+      svg.append(element('polyline', { points, fill: 'none', stroke: item.color, 'stroke-width': 2.5 }))
+      for (const snapshot of plotted) {
+        const date = new Date(snapshot.timestamp * 1000).toISOString().slice(0, 10)
+        const value = `${item.name}: ${formatMetric(snapshot, item.key)} · ${date}`
+        const circle = element('circle', { cx: positionX(snapshot), cy: positionY(metricValue(snapshot, item.key)), r: 5, fill: hidePoints ? 'transparent' : item.color, tabindex: 0, 'aria-label': value })
+        circle.append(element('title', {}, value))
+        const show = () => { getElement('detail').textContent = value }
+        const clear = () => { getElement('detail').textContent = '' }
+        circle.addEventListener('mouseenter', show)
+        circle.addEventListener('mouseleave', clear)
+        circle.addEventListener('focus', show)
+        circle.addEventListener('blur', clear)
+        svg.append(circle)
+      }
+    }
+  }
+  const failures = snapshots.reduce((total, snapshot) => total + snapshot.parse_errors.length, 0)
+  const manifestFailures = snapshots.reduce((total, snapshot) => total + (snapshot.manifest_errors || []).length, 0)
+  const warnings = []
+  if (report.configuration.history_truncated) warnings.push(`Requested ${report.configuration.requested_commits} commits, but only ${report.configuration.commits} first-parent edges are available. Sampled the available history.`)
+  if (report.configuration.shallow_boundary) warnings.push('Reached a shallow clone boundary. Deepen the clone to include older history.')
+  if (failures) warnings.push(`${failures} file/snapshot parse failures. Inline test counts may be incomplete. Details are in the JSON.`)
+  if (manifestFailures) warnings.push(`${manifestFailures} file/snapshot manifest parse failures. Custom target paths may be incomplete. Details are in the JSON.`)
+  getElement('warning').textContent = warnings.join(' ')
+  function drawTable() {
+    const rows = getElement('rows')
+    rows.replaceChildren()
+    for (const snapshot of snapshots) {
+      const row = document.createElement('tr')
+      for (const value of [`${snapshot.commit.slice(0, 10)} · ~${snapshot.offset}`, ...series.map(item => formatMetric(snapshot, item.key))]) {
+        const cell = document.createElement('td')
+        cell.textContent = value
+        row.append(cell)
+      }
+      rows.append(row)
+    }
+  }
+  function refresh() {
+    const start = firstMonth + Number(startMonthInput.value)
+    const end = firstMonth + Number(endMonthInput.value)
+    snapshots = allSnapshots.filter(snapshot => {
+      const month = timestampMonth(snapshot.timestamp)
+      return month >= start && month <= end
+    })
+    getElement('summary').textContent = `${snapshots.length} stops · ${report.unique_rust_blobs.toLocaleString()} unique Rust file versions · ${report.elapsed_seconds.toFixed(2)}s`
+    draw()
+    drawTable()
+    getElement('table').hidden = document.getElementById('hide-tables').checked
+  }
+  refresh()
+  return { refresh, table: getElement('table') }
+}
+const charts = reports.map(renderRepository)
+const refreshPlots = () => charts.forEach(chart => chart.refresh())
+for (const item of series) {
+  const label = document.createElement('label')
+  label.style.color = item.color
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = enabled.has(item.key)
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) enabled.add(item.key)
+    else enabled.delete(item.key)
+    savePreferences()
+    refreshPlots()
+  })
+  label.append(checkbox, document.createTextNode(item.name))
+  document.getElementById('controls').append(label)
+}
+for (const identifier of ['percentage-mode', 'axis-mode', 'compact-mode', 'hide-points']) {
+  document.getElementById(identifier).addEventListener('change', () => {
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const identifier of ['start-month', 'end-month']) {
+  document.getElementById(identifier).addEventListener('input', () => {
+    rangePreset = null
+    updateDateRange(identifier)
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const [label, months] of [['Last 2 months', 2], ['Last 6 months', 6], ['Last 12 months', 12], ['Last 2 years', 24], ['All time', 0]]) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.textContent = label
+  button.addEventListener('click', () => {
+    rangePreset = months
+    startMonthInput.value = String(months ? Math.max(0, monthCount - months + 1) : 0)
+    endMonthInput.value = String(monthCount)
+    updateDateRange()
+    savePreferences()
+    refreshPlots()
+  })
+  document.getElementById('date-presets').append(button)
+}
+document.getElementById('hide-tables').addEventListener('change', () => {
+  const hidden = document.getElementById('hide-tables').checked
+  savePreferences()
+  charts.forEach(chart => { chart.table.hidden = hidden })
+})
+document.getElementById('download').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(reportDocument, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'report.json'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+})
+</script>
+</html>

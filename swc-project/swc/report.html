@@ -1,0 +1,2982 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coogles · Rust history</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #11151d; color: #e8edf5 }
+html { scroll-behavior: smooth }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { max-width: 1100px; margin: 32px auto; padding: 0 20px }
+h1 { margin-bottom: 8px } h2 { overflow-wrap: anywhere } p { color: #aebcd0; line-height: 1.5 }
+a { color: #69c7ff }
+#repository-links { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-left: 20px }
+section { margin: 40px 0 64px; scroll-margin-top: 20px }
+section.compact { margin: 12px 0 }
+section.compact h2 { font-size: 18px; margin: 0 0 8px }
+section.compact .detail, section.compact [data-element="warning"] { display: none }
+[data-element="warning"]:empty { display: none }
+.controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0 }
+.options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px }
+#date-range { margin: 16px 0; max-width: 480px }
+#date-presets { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px }
+#date-presets button { flex: 0 0 auto; white-space: nowrap; padding: 6px 8px; font-size: 12px }
+.range-values { display: flex; justify-content: space-between; gap: 12px; font-size: 13px }
+.range-values span { display: block; margin-top: 4px }
+.range-slider { position: relative; height: 32px; margin-top: 8px }
+.range-track, #range-selected { position: absolute; top: 14px; height: 4px; border-radius: 4px }
+.range-track { left: 0; width: 100%; background: #344056 }
+#range-selected { background: #69c7ff }
+.range-slider input { position: absolute; top: 0; left: 0; width: 100%; height: 32px; margin: 0; background: transparent; appearance: none; pointer-events: none }
+.range-slider input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-track { background: transparent }
+.range-slider input:focus-visible { outline: 2px solid #69c7ff; outline-offset: 4px }
+label { cursor: pointer } input { margin-right: 8px }
+select { margin-left: 8px; padding: 6px; background: #27354b; color: #e8edf5; border: 1px solid #344056; border-radius: 6px }
+svg { width: 100%; background: #191f2b; border-radius: 12px }
+text { fill: #aebcd0; font-size: 13px }
+.grid { stroke: #344056; stroke-width: 1 }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+th, td { padding: 10px; border-bottom: 1px solid #344056; text-align: right }
+th:first-child, td:first-child { text-align: left }
+.scroll { overflow-x: auto } .detail { min-height: 1.5em }
+button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer }
+@media (min-width: 1100px) {
+  :root { --sidebar-width: clamp(224px, calc((100vw - 1000px) / 2), 672px) }
+  body { margin: 32px auto; width: calc(100% - 2 * var(--sidebar-width) - 80px); max-width: 1100px; box-sizing: border-box }
+  #plot-options { position: fixed; top: 32px; left: 20px; width: var(--sidebar-width); max-height: calc(100vh - 64px); overflow-y: auto; box-sizing: border-box; padding: 16px; background: #191f2b; border: 1px solid #344056; border-radius: 12px; font-size: 14px }
+  #plot-options .controls { flex-direction: column; gap: 14px; margin: 0 0 24px }
+  #plot-options .options { flex-direction: column; align-items: stretch; gap: 14px }
+  #plot-options select { display: block; width: 100%; margin: 8px 0 0 }
+  #plot-options #download { width: 100% }
+  #plot-options #date-range { max-width: none }
+}
+</style>
+<h1 id="top">Coogles</h1>
+<nav aria-label="Repositories"><ul id="repository-links"></ul></nav>
+<aside id="plot-options" aria-label="Plot controls">
+<div class="controls" id="controls"></div>
+<div class="options"><label>X axis <select id="axis-mode"><option value="commits">Commit distance</option><option value="time-1week">Time (every week)</option><option value="time">Time (every 2 weeks)</option><option value="time-4weeks">Time (every 4 weeks)</option></select></label> <label><input id="percentage-mode" type="checkbox">Percentage mode</label> <label><input id="hide-tables" type="checkbox">Hide commit tables</label> <label><input id="compact-mode" type="checkbox">Compact</label> <label><input id="hide-points" type="checkbox">Hide points</label></div>
+<div id="date-range">
+<div class="range-values"><label for="start-month">From<span id="start-month-label"></span></label><label for="end-month">To<span id="end-month-label"></span></label></div>
+<div class="range-slider"><div class="range-track"></div><div id="range-selected"></div><input id="start-month" type="range" min="0" max="0" value="0" step="1"><input id="end-month" type="range" min="0" max="0" value="0" step="1"></div>
+<div id="date-presets"></div>
+</div>
+<button id="download">Download JSON</button>
+</aside>
+<main id="repositories"></main>
+<template id="repository-template">
+<h2><a data-element="heading"></a></h2>
+<p data-element="summary"></p>
+<svg data-element="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
+<p class="detail" data-element="detail" aria-live="polite"></p>
+<p data-element="warning"></p>
+<div class="scroll" data-element="table"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Source code</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody data-element="rows"></tbody></table></div>
+</template>
+<script type="application/json" id="report">{
+  "schema_version": 1,
+  "repository": "/home/marc/Projects/coogles/trunk/data/swc-project/swc",
+  "head": "2c0fb896611f5b9d462886db9d8089813a99a4a6",
+  "configuration": {
+    "commits": 12215,
+    "requested_commits": null,
+    "all": true,
+    "history_truncated": false,
+    "shallow_boundary": false,
+    "offsets": [
+      0,
+      123,
+      246,
+      370,
+      493,
+      616,
+      740,
+      863,
+      987,
+      1110,
+      1233,
+      1357,
+      1480,
+      1603,
+      1727,
+      1850,
+      1974,
+      2097,
+      2220,
+      2344,
+      2467,
+      2591,
+      2714,
+      2837,
+      2961,
+      3084,
+      3207,
+      3331,
+      3454,
+      3578,
+      3701,
+      3824,
+      3948,
+      4071,
+      4195,
+      4318,
+      4441,
+      4565,
+      4688,
+      4811,
+      4935,
+      5058,
+      5182,
+      5305,
+      5428,
+      5552,
+      5675,
+      5799,
+      5922,
+      6045,
+      6169,
+      6292,
+      6415,
+      6539,
+      6662,
+      6786,
+      6909,
+      7032,
+      7156,
+      7279,
+      7403,
+      7526,
+      7649,
+      7773,
+      7896,
+      8019,
+      8143,
+      8266,
+      8390,
+      8513,
+      8636,
+      8760,
+      8883,
+      9007,
+      9130,
+      9253,
+      9377,
+      9500,
+      9623,
+      9747,
+      9870,
+      9994,
+      10117,
+      10240,
+      10364,
+      10487,
+      10611,
+      10734,
+      10857,
+      10981,
+      11104,
+      11227,
+      11351,
+      11474,
+      11598,
+      11721,
+      11844,
+      11968,
+      12091,
+      12215
+    ],
+    "traversal": "first-parent",
+    "includes_head": true
+  },
+  "definitions": "Physical nonblank code lines, excluding comments. Source code excludes test code and example code, with overlapping categories excluded only once. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
+  "unique_rust_blobs": 16896,
+  "analyzed_bytes": 431700897,
+  "elapsed_seconds": 91.691472534,
+  "snapshots": [
+    {
+      "commit": "2c0fb896611f5b9d462886db9d8089813a99a4a6",
+      "offset": 0,
+      "timestamp": 1790851807,
+      "metrics": {
+        "rust_files": 1467,
+        "code_loc": 720668,
+        "source_code_loc": 624357,
+        "test_code_loc": 94129,
+        "comment_loc": 20617,
+        "doc_loc": 11539,
+        "inner_doc_loc": 1503,
+        "outer_doc_loc": 10036,
+        "block_comment_loc": 133,
+        "block_doc_loc": 82,
+        "example_code_loc": 2182
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a5bd5924c14e702b995cdbb6581a9ecf4098df5a",
+      "offset": 123,
+      "timestamp": 1788761866,
+      "metrics": {
+        "rust_files": 1420,
+        "code_loc": 712738,
+        "source_code_loc": 620238,
+        "test_code_loc": 90318,
+        "comment_loc": 20354,
+        "doc_loc": 11208,
+        "inner_doc_loc": 1449,
+        "outer_doc_loc": 9759,
+        "block_comment_loc": 134,
+        "block_doc_loc": 82,
+        "example_code_loc": 2182
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "667af8cacdbc58e1af3887d381184355b84d4952",
+      "offset": 246,
+      "timestamp": 1785241575,
+      "metrics": {
+        "rust_files": 1413,
+        "code_loc": 705243,
+        "source_code_loc": 614277,
+        "test_code_loc": 88786,
+        "comment_loc": 19952,
+        "doc_loc": 10806,
+        "inner_doc_loc": 1429,
+        "outer_doc_loc": 9377,
+        "block_comment_loc": 138,
+        "block_doc_loc": 82,
+        "example_code_loc": 2180
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "242a03a5fcd6542eab527dfdcb67590b0b477eba",
+      "offset": 370,
+      "timestamp": 1780631009,
+      "metrics": {
+        "rust_files": 1278,
+        "code_loc": 683016,
+        "source_code_loc": 596904,
+        "test_code_loc": 84536,
+        "comment_loc": 19579,
+        "doc_loc": 10467,
+        "inner_doc_loc": 1393,
+        "outer_doc_loc": 9074,
+        "block_comment_loc": 171,
+        "block_doc_loc": 72,
+        "example_code_loc": 1576
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4fb500cc21eb1f6c3d84ba7bd66d6d084844a394",
+      "offset": 493,
+      "timestamp": 1776589056,
+      "metrics": {
+        "rust_files": 1349,
+        "code_loc": 702015,
+        "source_code_loc": 612714,
+        "test_code_loc": 87704,
+        "comment_loc": 19513,
+        "doc_loc": 11472,
+        "inner_doc_loc": 1408,
+        "outer_doc_loc": 10064,
+        "block_comment_loc": 177,
+        "block_doc_loc": 72,
+        "example_code_loc": 1597
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bdc24b7fdc006c77f4b5303bf4ff903b71fd8bcb",
+      "offset": 616,
+      "timestamp": 1773279720,
+      "metrics": {
+        "rust_files": 1337,
+        "code_loc": 693682,
+        "source_code_loc": 606094,
+        "test_code_loc": 86047,
+        "comment_loc": 19395,
+        "doc_loc": 11321,
+        "inner_doc_loc": 1316,
+        "outer_doc_loc": 10005,
+        "block_comment_loc": 172,
+        "block_doc_loc": 72,
+        "example_code_loc": 1541
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b94a17851c9032e0e17c3c9912cfdb60d00722f4",
+      "offset": 740,
+      "timestamp": 1769520444,
+      "metrics": {
+        "rust_files": 1223,
+        "code_loc": 659101,
+        "source_code_loc": 579875,
+        "test_code_loc": 77706,
+        "comment_loc": 18898,
+        "doc_loc": 9348,
+        "inner_doc_loc": 1169,
+        "outer_doc_loc": 8179,
+        "block_comment_loc": 172,
+        "block_doc_loc": 72,
+        "example_code_loc": 1520
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ec5c1bc5bf23249fd7cbd786ab735f9abb4ed9cb",
+      "offset": 863,
+      "timestamp": 1765794200,
+      "metrics": {
+        "rust_files": 1225,
+        "code_loc": 633998,
+        "source_code_loc": 555704,
+        "test_code_loc": 76774,
+        "comment_loc": 18584,
+        "doc_loc": 8791,
+        "inner_doc_loc": 763,
+        "outer_doc_loc": 8028,
+        "block_comment_loc": 173,
+        "block_doc_loc": 72,
+        "example_code_loc": 1520
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1e4a5ae31138bceb54f09e819f1dd022a1b39850",
+      "offset": 987,
+      "timestamp": 1762224570,
+      "metrics": {
+        "rust_files": 1182,
+        "code_loc": 615120,
+        "source_code_loc": 537427,
+        "test_code_loc": 76173,
+        "comment_loc": 18274,
+        "doc_loc": 8493,
+        "inner_doc_loc": 641,
+        "outer_doc_loc": 7852,
+        "block_comment_loc": 172,
+        "block_doc_loc": 62,
+        "example_code_loc": 1520
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "52dca391c9b496b7cf3d516d1c7c80a998f39d65",
+      "offset": 1110,
+      "timestamp": 1758596108,
+      "metrics": {
+        "rust_files": 1157,
+        "code_loc": 595139,
+        "source_code_loc": 518446,
+        "test_code_loc": 75211,
+        "comment_loc": 17184,
+        "doc_loc": 7793,
+        "inner_doc_loc": 602,
+        "outer_doc_loc": 7191,
+        "block_comment_loc": 141,
+        "block_doc_loc": 50,
+        "example_code_loc": 1482
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "758d8ec8e096b844ae6b603bfda72fba50133bf6",
+      "offset": 1233,
+      "timestamp": 1754894492,
+      "metrics": {
+        "rust_files": 1149,
+        "code_loc": 593349,
+        "source_code_loc": 516717,
+        "test_code_loc": 75187,
+        "comment_loc": 17152,
+        "doc_loc": 7773,
+        "inner_doc_loc": 599,
+        "outer_doc_loc": 7174,
+        "block_comment_loc": 141,
+        "block_doc_loc": 50,
+        "example_code_loc": 1445
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f39900cf5c13be342ac1a1a35d22ce1761bde89f",
+      "offset": 1357,
+      "timestamp": 1752473224,
+      "metrics": {
+        "rust_files": 1138,
+        "code_loc": 592719,
+        "source_code_loc": 516251,
+        "test_code_loc": 75023,
+        "comment_loc": 17095,
+        "doc_loc": 7693,
+        "inner_doc_loc": 598,
+        "outer_doc_loc": 7095,
+        "block_comment_loc": 138,
+        "block_doc_loc": 50,
+        "example_code_loc": 1445
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "31d2a375e40533530aa62d03963310cd01756829",
+      "offset": 1480,
+      "timestamp": 1750898246,
+      "metrics": {
+        "rust_files": 1142,
+        "code_loc": 593092,
+        "source_code_loc": 516673,
+        "test_code_loc": 74974,
+        "comment_loc": 17008,
+        "doc_loc": 7720,
+        "inner_doc_loc": 598,
+        "outer_doc_loc": 7122,
+        "block_comment_loc": 139,
+        "block_doc_loc": 50,
+        "example_code_loc": 1445
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0f858fd3470c5c104ab9b6ca900ea97be37c615f",
+      "offset": 1603,
+      "timestamp": 1749575879,
+      "metrics": {
+        "rust_files": 1139,
+        "code_loc": 590678,
+        "source_code_loc": 514503,
+        "test_code_loc": 74834,
+        "comment_loc": 16891,
+        "doc_loc": 7676,
+        "inner_doc_loc": 584,
+        "outer_doc_loc": 7092,
+        "block_comment_loc": 139,
+        "block_doc_loc": 50,
+        "example_code_loc": 1341
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bae494039d49967c05c6d34645de25ade13aac33",
+      "offset": 1727,
+      "timestamp": 1747243147,
+      "metrics": {
+        "rust_files": 1096,
+        "code_loc": 662523,
+        "source_code_loc": 586356,
+        "test_code_loc": 74897,
+        "comment_loc": 16783,
+        "doc_loc": 7883,
+        "inner_doc_loc": 644,
+        "outer_doc_loc": 7239,
+        "block_comment_loc": 137,
+        "block_doc_loc": 50,
+        "example_code_loc": 1270
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "795fedc6aec7f3dac7be0dd4a3237fe27d05dc7f",
+      "offset": 1850,
+      "timestamp": 1744072709,
+      "metrics": {
+        "rust_files": 1090,
+        "code_loc": 661859,
+        "source_code_loc": 585940,
+        "test_code_loc": 74759,
+        "comment_loc": 16724,
+        "doc_loc": 7851,
+        "inner_doc_loc": 645,
+        "outer_doc_loc": 7206,
+        "block_comment_loc": 137,
+        "block_doc_loc": 50,
+        "example_code_loc": 1160
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "08179702bfb1172d5764d8c5326bd00f4e04ba61",
+      "offset": 1974,
+      "timestamp": 1742470481,
+      "metrics": {
+        "rust_files": 1090,
+        "code_loc": 660475,
+        "source_code_loc": 584418,
+        "test_code_loc": 74897,
+        "comment_loc": 16702,
+        "doc_loc": 7940,
+        "inner_doc_loc": 647,
+        "outer_doc_loc": 7293,
+        "block_comment_loc": 136,
+        "block_doc_loc": 40,
+        "example_code_loc": 1160
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "6d05ecea06acab8e34ec4f43480dc158ee9961f8",
+      "offset": 2097,
+      "timestamp": 1740621949,
+      "metrics": {
+        "rust_files": 1075,
+        "code_loc": 653290,
+        "source_code_loc": 578832,
+        "test_code_loc": 73299,
+        "comment_loc": 15846,
+        "doc_loc": 7618,
+        "inner_doc_loc": 587,
+        "outer_doc_loc": 7031,
+        "block_comment_loc": 136,
+        "block_doc_loc": 40,
+        "example_code_loc": 1159
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "19e12f035a54fe1f8e3778880eb2813841b0114c",
+      "offset": 2220,
+      "timestamp": 1737967577,
+      "metrics": {
+        "rust_files": 1067,
+        "code_loc": 559855,
+        "source_code_loc": 485569,
+        "test_code_loc": 73127,
+        "comment_loc": 15766,
+        "doc_loc": 8020,
+        "inner_doc_loc": 593,
+        "outer_doc_loc": 7427,
+        "block_comment_loc": 136,
+        "block_doc_loc": 40,
+        "example_code_loc": 1159
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f8dff5602c129b2188eeeb6ee6ada051c5035166",
+      "offset": 2344,
+      "timestamp": 1735691941,
+      "metrics": {
+        "rust_files": 1055,
+        "code_loc": 557867,
+        "source_code_loc": 483800,
+        "test_code_loc": 72935,
+        "comment_loc": 15722,
+        "doc_loc": 7870,
+        "inner_doc_loc": 592,
+        "outer_doc_loc": 7278,
+        "block_comment_loc": 136,
+        "block_doc_loc": 40,
+        "example_code_loc": 1132
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9131b4dc6ad3f6bc9360555360b8c3ad6d460172",
+      "offset": 2467,
+      "timestamp": 1730339211,
+      "metrics": {
+        "rust_files": 1038,
+        "code_loc": 555465,
+        "source_code_loc": 481494,
+        "test_code_loc": 72897,
+        "comment_loc": 15656,
+        "doc_loc": 7858,
+        "inner_doc_loc": 589,
+        "outer_doc_loc": 7269,
+        "block_comment_loc": 100,
+        "block_doc_loc": 40,
+        "example_code_loc": 1074
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3d9d641f8b49725014e7d7a72a6f0a5dfe01f42c",
+      "offset": 2591,
+      "timestamp": 1727750630,
+      "metrics": {
+        "rust_files": 1038,
+        "code_loc": 554704,
+        "source_code_loc": 480923,
+        "test_code_loc": 72701,
+        "comment_loc": 15654,
+        "doc_loc": 7835,
+        "inner_doc_loc": 586,
+        "outer_doc_loc": 7249,
+        "block_comment_loc": 100,
+        "block_doc_loc": 40,
+        "example_code_loc": 1080
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5a7b19dcb5fa09ef66af4d96f1d9813a560260e1",
+      "offset": 2714,
+      "timestamp": 1724149482,
+      "metrics": {
+        "rust_files": 1037,
+        "code_loc": 555039,
+        "source_code_loc": 480781,
+        "test_code_loc": 73185,
+        "comment_loc": 15648,
+        "doc_loc": 7853,
+        "inner_doc_loc": 586,
+        "outer_doc_loc": 7267,
+        "block_comment_loc": 100,
+        "block_doc_loc": 40,
+        "example_code_loc": 1073
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "12e091d09f61722cd3886b316a765586486a8c14",
+      "offset": 2837,
+      "timestamp": 1723099037,
+      "metrics": {
+        "rust_files": 1034,
+        "code_loc": 579030,
+        "source_code_loc": 504860,
+        "test_code_loc": 73097,
+        "comment_loc": 15633,
+        "doc_loc": 7841,
+        "inner_doc_loc": 586,
+        "outer_doc_loc": 7255,
+        "block_comment_loc": 105,
+        "block_doc_loc": 40,
+        "example_code_loc": 1073
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2fe208aa8ca6fc2040c523766507856c256e203b",
+      "offset": 2961,
+      "timestamp": 1721721768,
+      "metrics": {
+        "rust_files": 1034,
+        "code_loc": 578826,
+        "source_code_loc": 504661,
+        "test_code_loc": 73092,
+        "comment_loc": 15633,
+        "doc_loc": 7838,
+        "inner_doc_loc": 586,
+        "outer_doc_loc": 7252,
+        "block_comment_loc": 105,
+        "block_doc_loc": 40,
+        "example_code_loc": 1073
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e343eb6de2747086f9873c6444964500e40b4936",
+      "offset": 3084,
+      "timestamp": 1720931261,
+      "metrics": {
+        "rust_files": 1027,
+        "code_loc": 290575,
+        "source_code_loc": 216485,
+        "test_code_loc": 73018,
+        "comment_loc": 15632,
+        "doc_loc": 7732,
+        "inner_doc_loc": 556,
+        "outer_doc_loc": 7176,
+        "block_comment_loc": 105,
+        "block_doc_loc": 40,
+        "example_code_loc": 1072
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ce78baa17de1e48a22e336c85420ce79df96246b",
+      "offset": 3207,
+      "timestamp": 1720171232,
+      "metrics": {
+        "rust_files": 1017,
+        "code_loc": 287418,
+        "source_code_loc": 213346,
+        "test_code_loc": 73002,
+        "comment_loc": 15579,
+        "doc_loc": 7502,
+        "inner_doc_loc": 553,
+        "outer_doc_loc": 6949,
+        "block_comment_loc": 105,
+        "block_doc_loc": 40,
+        "example_code_loc": 1070
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "79e737caac6d8b54a3e718e07499ab40e84d9519",
+      "offset": 3331,
+      "timestamp": 1718529308,
+      "metrics": {
+        "rust_files": 1011,
+        "code_loc": 285133,
+        "source_code_loc": 211618,
+        "test_code_loc": 72448,
+        "comment_loc": 15368,
+        "doc_loc": 7397,
+        "inner_doc_loc": 552,
+        "outer_doc_loc": 6845,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1067
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1d87db555ad7d828d52220b7dba932852c3851b8",
+      "offset": 3454,
+      "timestamp": 1717041644,
+      "metrics": {
+        "rust_files": 1006,
+        "code_loc": 284974,
+        "source_code_loc": 211463,
+        "test_code_loc": 72444,
+        "comment_loc": 15343,
+        "doc_loc": 7364,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6815,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1067
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "110daf98779c722d224eb76d79af9a178030f99d",
+      "offset": 3578,
+      "timestamp": 1714998317,
+      "metrics": {
+        "rust_files": 1005,
+        "code_loc": 284591,
+        "source_code_loc": 211224,
+        "test_code_loc": 72290,
+        "comment_loc": 15328,
+        "doc_loc": 7362,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6813,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1077
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "dc046572def13a3eb625520c5a8bfd651b86f3a3",
+      "offset": 3701,
+      "timestamp": 1712625663,
+      "metrics": {
+        "rust_files": 1003,
+        "code_loc": 285501,
+        "source_code_loc": 211279,
+        "test_code_loc": 73142,
+        "comment_loc": 15322,
+        "doc_loc": 7382,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6833,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1080
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1f65271b72f68546dfd23507936548ecfccc18f2",
+      "offset": 3824,
+      "timestamp": 1709796005,
+      "metrics": {
+        "rust_files": 1001,
+        "code_loc": 284809,
+        "source_code_loc": 210682,
+        "test_code_loc": 73047,
+        "comment_loc": 15893,
+        "doc_loc": 7380,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6831,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1080
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5a773061dbb8674d93fab46681492a7e08f95f2c",
+      "offset": 3948,
+      "timestamp": 1707187581,
+      "metrics": {
+        "rust_files": 999,
+        "code_loc": 284583,
+        "source_code_loc": 210514,
+        "test_code_loc": 73001,
+        "comment_loc": 15890,
+        "doc_loc": 7389,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6840,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1068
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3741448b1b0bf88671079a394afc18a691be37c7",
+      "offset": 4071,
+      "timestamp": 1705586649,
+      "metrics": {
+        "rust_files": 999,
+        "code_loc": 283521,
+        "source_code_loc": 209767,
+        "test_code_loc": 72690,
+        "comment_loc": 15869,
+        "doc_loc": 7384,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6835,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1064
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "602584dd627dea1226c812fe1d0a414b4a2be778",
+      "offset": 4195,
+      "timestamp": 1702264048,
+      "metrics": {
+        "rust_files": 999,
+        "code_loc": 282981,
+        "source_code_loc": 209290,
+        "test_code_loc": 72627,
+        "comment_loc": 15860,
+        "doc_loc": 7375,
+        "inner_doc_loc": 549,
+        "outer_doc_loc": 6826,
+        "block_comment_loc": 104,
+        "block_doc_loc": 40,
+        "example_code_loc": 1064
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9e8fe38d316254a6bf8162169a5ccec12f831dcf",
+      "offset": 4318,
+      "timestamp": 1700100199,
+      "metrics": {
+        "rust_files": 997,
+        "code_loc": 283388,
+        "source_code_loc": 209859,
+        "test_code_loc": 72465,
+        "comment_loc": 15901,
+        "doc_loc": 7372,
+        "inner_doc_loc": 548,
+        "outer_doc_loc": 6824,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1064
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b77d99d4b8ef9c84388c8c309ad87480b34beb32",
+      "offset": 4441,
+      "timestamp": 1698630107,
+      "metrics": {
+        "rust_files": 998,
+        "code_loc": 282651,
+        "source_code_loc": 209980,
+        "test_code_loc": 71607,
+        "comment_loc": 15897,
+        "doc_loc": 7379,
+        "inner_doc_loc": 548,
+        "outer_doc_loc": 6831,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1064
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7073e83f65ed5e98ee294c8e366a80b0a0f5921f",
+      "offset": 4565,
+      "timestamp": 1696730630,
+      "metrics": {
+        "rust_files": 988,
+        "code_loc": 296696,
+        "source_code_loc": 209000,
+        "test_code_loc": 86632,
+        "comment_loc": 15886,
+        "doc_loc": 7351,
+        "inner_doc_loc": 548,
+        "outer_doc_loc": 6803,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1064
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "94b45e92a45b256dc20d04b80bd2e5844ef1c94f",
+      "offset": 4688,
+      "timestamp": 1694757800,
+      "metrics": {
+        "rust_files": 967,
+        "code_loc": 295409,
+        "source_code_loc": 207887,
+        "test_code_loc": 86457,
+        "comment_loc": 15851,
+        "doc_loc": 7315,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6768,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1065
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "47350a8ac692fe09f4fff85a9942c0170f5e023a",
+      "offset": 4811,
+      "timestamp": 1692030922,
+      "metrics": {
+        "rust_files": 965,
+        "code_loc": 294978,
+        "source_code_loc": 207470,
+        "test_code_loc": 86425,
+        "comment_loc": 15798,
+        "doc_loc": 7294,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6747,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1083
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1fe263903d993a960bbd66f56a257ba1ceca42fb",
+      "offset": 4935,
+      "timestamp": 1688696227,
+      "metrics": {
+        "rust_files": 964,
+        "code_loc": 293992,
+        "source_code_loc": 206500,
+        "test_code_loc": 86409,
+        "comment_loc": 15739,
+        "doc_loc": 7286,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6739,
+        "block_comment_loc": 106,
+        "block_doc_loc": 40,
+        "example_code_loc": 1083
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "eeac6fa68ad9856387863abba1a052bd4fed6b18",
+      "offset": 5058,
+      "timestamp": 1686190880,
+      "metrics": {
+        "rust_files": 964,
+        "code_loc": 294198,
+        "source_code_loc": 206155,
+        "test_code_loc": 86816,
+        "comment_loc": 15790,
+        "doc_loc": 7313,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6766,
+        "block_comment_loc": 116,
+        "block_doc_loc": 40,
+        "example_code_loc": 1227
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9c052db796473a4a7253d643426a7c2c765d9640",
+      "offset": 5182,
+      "timestamp": 1683517123,
+      "metrics": {
+        "rust_files": 963,
+        "code_loc": 292797,
+        "source_code_loc": 204890,
+        "test_code_loc": 86680,
+        "comment_loc": 15746,
+        "doc_loc": 7307,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6760,
+        "block_comment_loc": 123,
+        "block_doc_loc": 45,
+        "example_code_loc": 1227
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a24f3554ce24a095ec1ab5cba5fe3c005f9aedb6",
+      "offset": 5305,
+      "timestamp": 1681103044,
+      "metrics": {
+        "rust_files": 963,
+        "code_loc": 292305,
+        "source_code_loc": 204589,
+        "test_code_loc": 86491,
+        "comment_loc": 15742,
+        "doc_loc": 7322,
+        "inner_doc_loc": 547,
+        "outer_doc_loc": 6775,
+        "block_comment_loc": 143,
+        "block_doc_loc": 45,
+        "example_code_loc": 1225
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "890274108480cf87c867f342fa7f78a5b88fe94d",
+      "offset": 5428,
+      "timestamp": 1679020831,
+      "metrics": {
+        "rust_files": 970,
+        "code_loc": 291532,
+        "source_code_loc": 203355,
+        "test_code_loc": 86920,
+        "comment_loc": 15668,
+        "doc_loc": 7428,
+        "inner_doc_loc": 546,
+        "outer_doc_loc": 6882,
+        "block_comment_loc": 133,
+        "block_doc_loc": 45,
+        "example_code_loc": 1257
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1dfadb87907ef24c7b4d5184f24f30e028c1cef2",
+      "offset": 5552,
+      "timestamp": 1676870908,
+      "metrics": {
+        "rust_files": 964,
+        "code_loc": 290127,
+        "source_code_loc": 202185,
+        "test_code_loc": 86685,
+        "comment_loc": 15619,
+        "doc_loc": 7302,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6761,
+        "block_comment_loc": 132,
+        "block_doc_loc": 45,
+        "example_code_loc": 1257
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "df702614e1c23ee119d26beeb1b3abd454d7add0",
+      "offset": 5675,
+      "timestamp": 1674202138,
+      "metrics": {
+        "rust_files": 961,
+        "code_loc": 288805,
+        "source_code_loc": 201649,
+        "test_code_loc": 85899,
+        "comment_loc": 15541,
+        "doc_loc": 7299,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6758,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1257
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "58700f2bec696d0d2b2466ab6b4641f0a7017808",
+      "offset": 5799,
+      "timestamp": 1671615280,
+      "metrics": {
+        "rust_files": 961,
+        "code_loc": 288086,
+        "source_code_loc": 201132,
+        "test_code_loc": 85707,
+        "comment_loc": 15540,
+        "doc_loc": 7271,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6730,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1247
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "68d76afe5d99f834dd4578cc50bd48624f76c21d",
+      "offset": 5922,
+      "timestamp": 1670633471,
+      "metrics": {
+        "rust_files": 950,
+        "code_loc": 284590,
+        "source_code_loc": 197718,
+        "test_code_loc": 85625,
+        "comment_loc": 15524,
+        "doc_loc": 7229,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6688,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1247
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "71ce4a449a51c4bd558f636b8c3381e26336bd54",
+      "offset": 6045,
+      "timestamp": 1669469716,
+      "metrics": {
+        "rust_files": 946,
+        "code_loc": 284448,
+        "source_code_loc": 197168,
+        "test_code_loc": 86039,
+        "comment_loc": 15565,
+        "doc_loc": 7186,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6645,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4d49b9f61f226551d96e8e3210702366a5a1b885",
+      "offset": 6169,
+      "timestamp": 1667958612,
+      "metrics": {
+        "rust_files": 942,
+        "code_loc": 283979,
+        "source_code_loc": 196908,
+        "test_code_loc": 85830,
+        "comment_loc": 15542,
+        "doc_loc": 7182,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6641,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "634155462828b36f71cebfdb0937f2cd5f7e62e0",
+      "offset": 6292,
+      "timestamp": 1666581087,
+      "metrics": {
+        "rust_files": 941,
+        "code_loc": 282805,
+        "source_code_loc": 195943,
+        "test_code_loc": 85621,
+        "comment_loc": 15429,
+        "doc_loc": 7181,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6640,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a50b5aeeb169f4415cc8cef4fd96d84e3c7dd77b",
+      "offset": 6415,
+      "timestamp": 1665744131,
+      "metrics": {
+        "rust_files": 937,
+        "code_loc": 280744,
+        "source_code_loc": 194185,
+        "test_code_loc": 85318,
+        "comment_loc": 15350,
+        "doc_loc": 7167,
+        "inner_doc_loc": 541,
+        "outer_doc_loc": 6626,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d01887e3d147102da9703750b4f1619d4fcb6786",
+      "offset": 6539,
+      "timestamp": 1664960471,
+      "metrics": {
+        "rust_files": 933,
+        "code_loc": 276973,
+        "source_code_loc": 190891,
+        "test_code_loc": 84841,
+        "comment_loc": 15284,
+        "doc_loc": 7107,
+        "inner_doc_loc": 527,
+        "outer_doc_loc": 6580,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8dbef496cf01acf22462348dc6ee36afc7f40889",
+      "offset": 6662,
+      "timestamp": 1663855089,
+      "metrics": {
+        "rust_files": 926,
+        "code_loc": 274353,
+        "source_code_loc": 188949,
+        "test_code_loc": 84163,
+        "comment_loc": 15240,
+        "doc_loc": 7069,
+        "inner_doc_loc": 526,
+        "outer_doc_loc": 6543,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "10637b006fb5c66b9bf7b9fef417ee04924f2845",
+      "offset": 6786,
+      "timestamp": 1663035382,
+      "metrics": {
+        "rust_files": 920,
+        "code_loc": 272560,
+        "source_code_loc": 187216,
+        "test_code_loc": 84103,
+        "comment_loc": 15247,
+        "doc_loc": 7060,
+        "inner_doc_loc": 526,
+        "outer_doc_loc": 6534,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1241
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "6ba6da62d72edf69d699e2c031aa38c630e00e39",
+      "offset": 6909,
+      "timestamp": 1662276806,
+      "metrics": {
+        "rust_files": 914,
+        "code_loc": 271589,
+        "source_code_loc": 186428,
+        "test_code_loc": 83992,
+        "comment_loc": 15226,
+        "doc_loc": 7051,
+        "inner_doc_loc": 525,
+        "outer_doc_loc": 6526,
+        "block_comment_loc": 170,
+        "block_doc_loc": 45,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1181d0ffe2b432a202398dfc99dcc89da7480b84",
+      "offset": 7032,
+      "timestamp": 1661330577,
+      "metrics": {
+        "rust_files": 916,
+        "code_loc": 269114,
+        "source_code_loc": 184320,
+        "test_code_loc": 83625,
+        "comment_loc": 14984,
+        "doc_loc": 6844,
+        "inner_doc_loc": 517,
+        "outer_doc_loc": 6327,
+        "block_comment_loc": 170,
+        "block_doc_loc": 40,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b37b64013354d621b47bddca6e3bf6294f29b11d",
+      "offset": 7156,
+      "timestamp": 1660698802,
+      "metrics": {
+        "rust_files": 913,
+        "code_loc": 268394,
+        "source_code_loc": 183675,
+        "test_code_loc": 83550,
+        "comment_loc": 14950,
+        "doc_loc": 6833,
+        "inner_doc_loc": 517,
+        "outer_doc_loc": 6316,
+        "block_comment_loc": 170,
+        "block_doc_loc": 40,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ec6082fdbb3f09b9a532967539fcf69268430e1a",
+      "offset": 7279,
+      "timestamp": 1659923131,
+      "metrics": {
+        "rust_files": 910,
+        "code_loc": 267715,
+        "source_code_loc": 183044,
+        "test_code_loc": 83502,
+        "comment_loc": 14935,
+        "doc_loc": 6819,
+        "inner_doc_loc": 517,
+        "outer_doc_loc": 6302,
+        "block_comment_loc": 152,
+        "block_doc_loc": 40,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4fb5e7d4dd2405d8ea1cf4258f830f4cb52defa1",
+      "offset": 7403,
+      "timestamp": 1658837907,
+      "metrics": {
+        "rust_files": 878,
+        "code_loc": 259784,
+        "source_code_loc": 175834,
+        "test_code_loc": 82781,
+        "comment_loc": 14100,
+        "doc_loc": 6685,
+        "inner_doc_loc": 520,
+        "outer_doc_loc": 6165,
+        "block_comment_loc": 131,
+        "block_doc_loc": 40,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e1079d4fe98024ca7c52fd326eda8b4377aad870",
+      "offset": 7526,
+      "timestamp": 1657771574,
+      "metrics": {
+        "rust_files": 874,
+        "code_loc": 259258,
+        "source_code_loc": 175348,
+        "test_code_loc": 82741,
+        "comment_loc": 14095,
+        "doc_loc": 6652,
+        "inner_doc_loc": 520,
+        "outer_doc_loc": 6132,
+        "block_comment_loc": 126,
+        "block_doc_loc": 40,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "adbb0bf8d8391aa4f15d64c72be701c03de98617",
+      "offset": 7649,
+      "timestamp": 1656945423,
+      "metrics": {
+        "rust_files": 873,
+        "code_loc": 255943,
+        "source_code_loc": 172281,
+        "test_code_loc": 82493,
+        "comment_loc": 14035,
+        "doc_loc": 6520,
+        "inner_doc_loc": 499,
+        "outer_doc_loc": 6021,
+        "block_comment_loc": 123,
+        "block_doc_loc": 0,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "852b864b6485d3865e72ad09f751f0436c0d02b8",
+      "offset": 7773,
+      "timestamp": 1655728102,
+      "metrics": {
+        "rust_files": 875,
+        "code_loc": 264355,
+        "source_code_loc": 173831,
+        "test_code_loc": 89355,
+        "comment_loc": 14341,
+        "doc_loc": 6394,
+        "inner_doc_loc": 499,
+        "outer_doc_loc": 5895,
+        "block_comment_loc": 129,
+        "block_doc_loc": 0,
+        "example_code_loc": 1169
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3997f9f3435850e7590ba623e6bc78dba50866f3",
+      "offset": 7896,
+      "timestamp": 1654834955,
+      "metrics": {
+        "rust_files": 867,
+        "code_loc": 262165,
+        "source_code_loc": 171905,
+        "test_code_loc": 89095,
+        "comment_loc": 14352,
+        "doc_loc": 6380,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5877,
+        "block_comment_loc": 127,
+        "block_doc_loc": 0,
+        "example_code_loc": 1165
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cf4c46517be3fde215d389490c8640b2980923e4",
+      "offset": 8019,
+      "timestamp": 1653545759,
+      "metrics": {
+        "rust_files": 869,
+        "code_loc": 261726,
+        "source_code_loc": 171584,
+        "test_code_loc": 88977,
+        "comment_loc": 14323,
+        "doc_loc": 6364,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5861,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1165
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "72fbf692a49f1612e2c04548c8c82279eeb3ad35",
+      "offset": 8143,
+      "timestamp": 1652944357,
+      "metrics": {
+        "rust_files": 867,
+        "code_loc": 260580,
+        "source_code_loc": 170552,
+        "test_code_loc": 88863,
+        "comment_loc": 14215,
+        "doc_loc": 6336,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5833,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1165
+      },
+      "parse_errors": [
+        "crates/dbg-swc/src/util/mod.rs: expected an expression at 77:22",
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "56a227ad9dc5b9b706fe8b0d35bf086e986dda07",
+      "offset": 8266,
+      "timestamp": 1652336058,
+      "metrics": {
+        "rust_files": 853,
+        "code_loc": 258772,
+        "source_code_loc": 169156,
+        "test_code_loc": 88470,
+        "comment_loc": 14169,
+        "doc_loc": 6292,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5789,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1146
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "07cf28a168c0e4619c3293ece180922d5e9a632d",
+      "offset": 8390,
+      "timestamp": 1651817566,
+      "metrics": {
+        "rust_files": 839,
+        "code_loc": 256426,
+        "source_code_loc": 167505,
+        "test_code_loc": 87775,
+        "comment_loc": 14015,
+        "doc_loc": 6195,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5692,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1146
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f30e7717a20348af2f6ef65bb7ff800fbffeadb4",
+      "offset": 8513,
+      "timestamp": 1651030116,
+      "metrics": {
+        "rust_files": 836,
+        "code_loc": 256238,
+        "source_code_loc": 167148,
+        "test_code_loc": 87944,
+        "comment_loc": 14457,
+        "doc_loc": 6191,
+        "inner_doc_loc": 503,
+        "outer_doc_loc": 5688,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1146
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e00ac7e38fd9a0fd209a4cf3c3050e39d59686d1",
+      "offset": 8636,
+      "timestamp": 1650405901,
+      "metrics": {
+        "rust_files": 824,
+        "code_loc": 249829,
+        "source_code_loc": 161502,
+        "test_code_loc": 87300,
+        "comment_loc": 11356,
+        "doc_loc": 6103,
+        "inner_doc_loc": 498,
+        "outer_doc_loc": 5605,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 1027
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "21d3fea824ee241409df980f92e3baacb10fc4cb",
+      "offset": 8760,
+      "timestamp": 1649406898,
+      "metrics": {
+        "rust_files": 814,
+        "code_loc": 247730,
+        "source_code_loc": 159726,
+        "test_code_loc": 87041,
+        "comment_loc": 11306,
+        "doc_loc": 6054,
+        "inner_doc_loc": 495,
+        "outer_doc_loc": 5559,
+        "block_comment_loc": 89,
+        "block_doc_loc": 0,
+        "example_code_loc": 963
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "40b3381ae85ef2d328549d6f2a191a927c662acc",
+      "offset": 8883,
+      "timestamp": 1648636371,
+      "metrics": {
+        "rust_files": 802,
+        "code_loc": 241048,
+        "source_code_loc": 153519,
+        "test_code_loc": 86566,
+        "comment_loc": 9863,
+        "doc_loc": 5930,
+        "inner_doc_loc": 504,
+        "outer_doc_loc": 5426,
+        "block_comment_loc": 51,
+        "block_doc_loc": 0,
+        "example_code_loc": 963
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "51e2dfd7e789c5703f84f5e41ed3f00973522221",
+      "offset": 9007,
+      "timestamp": 1647689286,
+      "metrics": {
+        "rust_files": 797,
+        "code_loc": 238349,
+        "source_code_loc": 151522,
+        "test_code_loc": 85864,
+        "comment_loc": 9826,
+        "doc_loc": 5916,
+        "inner_doc_loc": 505,
+        "outer_doc_loc": 5411,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 963
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3cfe4ccb948b90042a1318f87cb9c02424e862ab",
+      "offset": 9130,
+      "timestamp": 1647194419,
+      "metrics": {
+        "rust_files": 781,
+        "code_loc": 236181,
+        "source_code_loc": 149742,
+        "test_code_loc": 85683,
+        "comment_loc": 9811,
+        "doc_loc": 5891,
+        "inner_doc_loc": 500,
+        "outer_doc_loc": 5391,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 756
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7cfa930a629da96b30c2d5021a51d15c0b121013",
+      "offset": 9253,
+      "timestamp": 1646750118,
+      "metrics": {
+        "rust_files": 779,
+        "code_loc": 234191,
+        "source_code_loc": 148031,
+        "test_code_loc": 85404,
+        "comment_loc": 9686,
+        "doc_loc": 5827,
+        "inner_doc_loc": 494,
+        "outer_doc_loc": 5333,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 756
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "351b814ed0f1ca36a1e8fd352674689ffe392eda",
+      "offset": 9377,
+      "timestamp": 1646317609,
+      "metrics": {
+        "rust_files": 766,
+        "code_loc": 231902,
+        "source_code_loc": 145999,
+        "test_code_loc": 85146,
+        "comment_loc": 9624,
+        "doc_loc": 5806,
+        "inner_doc_loc": 490,
+        "outer_doc_loc": 5316,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 757
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "66f00bef88ad015715eb62863a88f19ea90d1e4f",
+      "offset": 9500,
+      "timestamp": 1645937842,
+      "metrics": {
+        "rust_files": 722,
+        "code_loc": 227077,
+        "source_code_loc": 141447,
+        "test_code_loc": 84873,
+        "comment_loc": 9525,
+        "doc_loc": 5705,
+        "inner_doc_loc": 489,
+        "outer_doc_loc": 5216,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 757
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0b5f5544c60136bde3bd07c9c75459086cf4b0d5",
+      "offset": 9623,
+      "timestamp": 1645500608,
+      "metrics": {
+        "rust_files": 708,
+        "code_loc": 223571,
+        "source_code_loc": 138537,
+        "test_code_loc": 84276,
+        "comment_loc": 9505,
+        "doc_loc": 5627,
+        "inner_doc_loc": 488,
+        "outer_doc_loc": 5139,
+        "block_comment_loc": 45,
+        "block_doc_loc": 0,
+        "example_code_loc": 758
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ad6f24ad83ed0086ab7f4e260800df598212be25",
+      "offset": 9747,
+      "timestamp": 1644893924,
+      "metrics": {
+        "rust_files": 697,
+        "code_loc": 220392,
+        "source_code_loc": 136038,
+        "test_code_loc": 83500,
+        "comment_loc": 9424,
+        "doc_loc": 5543,
+        "inner_doc_loc": 487,
+        "outer_doc_loc": 5056,
+        "block_comment_loc": 46,
+        "block_doc_loc": 0,
+        "example_code_loc": 854
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4f5e87b66b42a5672e00edcfa22234f1cde79580",
+      "offset": 9870,
+      "timestamp": 1644250301,
+      "metrics": {
+        "rust_files": 680,
+        "code_loc": 217298,
+        "source_code_loc": 133415,
+        "test_code_loc": 83029,
+        "comment_loc": 9315,
+        "doc_loc": 5504,
+        "inner_doc_loc": 487,
+        "outer_doc_loc": 5017,
+        "block_comment_loc": 46,
+        "block_doc_loc": 0,
+        "example_code_loc": 854
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "50521d8ffa3425ad26eb4630698f06b69c41ef2b",
+      "offset": 9994,
+      "timestamp": 1643172349,
+      "metrics": {
+        "rust_files": 689,
+        "code_loc": 208208,
+        "source_code_loc": 133221,
+        "test_code_loc": 74133,
+        "comment_loc": 9314,
+        "doc_loc": 5535,
+        "inner_doc_loc": 488,
+        "outer_doc_loc": 5047,
+        "block_comment_loc": 46,
+        "block_doc_loc": 0,
+        "example_code_loc": 854
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7c19e26d0f41002a35c1695c259172916e578eab",
+      "offset": 10117,
+      "timestamp": 1642131874,
+      "metrics": {
+        "rust_files": 689,
+        "code_loc": 208341,
+        "source_code_loc": 133223,
+        "test_code_loc": 74265,
+        "comment_loc": 9315,
+        "doc_loc": 5510,
+        "inner_doc_loc": 489,
+        "outer_doc_loc": 5021,
+        "block_comment_loc": 46,
+        "block_doc_loc": 0,
+        "example_code_loc": 853
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "194b3e9b67fb096dee8dbd12fff9167e4217174b",
+      "offset": 10240,
+      "timestamp": 1640858358,
+      "metrics": {
+        "rust_files": 679,
+        "code_loc": 206820,
+        "source_code_loc": 132793,
+        "test_code_loc": 73175,
+        "comment_loc": 9197,
+        "doc_loc": 5378,
+        "inner_doc_loc": 519,
+        "outer_doc_loc": 4859,
+        "block_comment_loc": 40,
+        "block_doc_loc": 0,
+        "example_code_loc": 852
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c415487bb91f466948c2279030f3643049ad395a",
+      "offset": 10364,
+      "timestamp": 1639354882,
+      "metrics": {
+        "rust_files": 655,
+        "code_loc": 203003,
+        "source_code_loc": 130623,
+        "test_code_loc": 71587,
+        "comment_loc": 9155,
+        "doc_loc": 5301,
+        "inner_doc_loc": 508,
+        "outer_doc_loc": 4793,
+        "block_comment_loc": 40,
+        "block_doc_loc": 0,
+        "example_code_loc": 793
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "666e3cc71ef8f9e491b45c1ff695a5d0cf21b5d3",
+      "offset": 10487,
+      "timestamp": 1638229365,
+      "metrics": {
+        "rust_files": 654,
+        "code_loc": 200592,
+        "source_code_loc": 129065,
+        "test_code_loc": 70736,
+        "comment_loc": 9077,
+        "doc_loc": 5282,
+        "inner_doc_loc": 508,
+        "outer_doc_loc": 4774,
+        "block_comment_loc": 40,
+        "block_doc_loc": 0,
+        "example_code_loc": 791
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2fb4e5a60ccdd5531e075bb03348a3548e275d2b",
+      "offset": 10611,
+      "timestamp": 1637067051,
+      "metrics": {
+        "rust_files": 637,
+        "code_loc": 199638,
+        "source_code_loc": 128874,
+        "test_code_loc": 69973,
+        "comment_loc": 8994,
+        "doc_loc": 5177,
+        "inner_doc_loc": 506,
+        "outer_doc_loc": 4671,
+        "block_comment_loc": 81,
+        "block_doc_loc": 0,
+        "example_code_loc": 791
+      },
+      "parse_errors": [
+        "crates/swc_common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "dfd8d1ad61675d8de0c96df96b04b6c13540ed3a",
+      "offset": 10734,
+      "timestamp": 1635604184,
+      "metrics": {
+        "rust_files": 625,
+        "code_loc": 194634,
+        "source_code_loc": 125496,
+        "test_code_loc": 68350,
+        "comment_loc": 8719,
+        "doc_loc": 5092,
+        "inner_doc_loc": 457,
+        "outer_doc_loc": 4635,
+        "block_comment_loc": 81,
+        "block_doc_loc": 0,
+        "example_code_loc": 788
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5fb5a7058fab29539ed414522abb78670392ce51",
+      "offset": 10857,
+      "timestamp": 1634138116,
+      "metrics": {
+        "rust_files": 612,
+        "code_loc": 191909,
+        "source_code_loc": 123659,
+        "test_code_loc": 67576,
+        "comment_loc": 8826,
+        "doc_loc": 5012,
+        "inner_doc_loc": 450,
+        "outer_doc_loc": 4562,
+        "block_comment_loc": 81,
+        "block_doc_loc": 0,
+        "example_code_loc": 674
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "87f30b21a34b41f567da4f3f28b7767fed0d76af",
+      "offset": 10981,
+      "timestamp": 1630644931,
+      "metrics": {
+        "rust_files": 596,
+        "code_loc": 187495,
+        "source_code_loc": 120574,
+        "test_code_loc": 66599,
+        "comment_loc": 8705,
+        "doc_loc": 4754,
+        "inner_doc_loc": 343,
+        "outer_doc_loc": 4411,
+        "block_comment_loc": 77,
+        "block_doc_loc": 0,
+        "example_code_loc": 322
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "04d43844821bfea4de40f14e58a10e6f7a42f147",
+      "offset": 11104,
+      "timestamp": 1625549385,
+      "metrics": {
+        "rust_files": 518,
+        "code_loc": 174409,
+        "source_code_loc": 108520,
+        "test_code_loc": 65568,
+        "comment_loc": 8504,
+        "doc_loc": 4333,
+        "inner_doc_loc": 270,
+        "outer_doc_loc": 4063,
+        "block_comment_loc": 77,
+        "block_doc_loc": 0,
+        "example_code_loc": 321
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c765c7e06e1d3caa6f7271630831c79f4b3e6a2c",
+      "offset": 11227,
+      "timestamp": 1618827370,
+      "metrics": {
+        "rust_files": 411,
+        "code_loc": 145837,
+        "source_code_loc": 82014,
+        "test_code_loc": 63502,
+        "comment_loc": 7935,
+        "doc_loc": 3751,
+        "inner_doc_loc": 230,
+        "outer_doc_loc": 3521,
+        "block_comment_loc": 33,
+        "block_doc_loc": 0,
+        "example_code_loc": 321
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "78dc61af332fe8ce796d9345a86ef7830294e135",
+      "offset": 11351,
+      "timestamp": 1610361557,
+      "metrics": {
+        "rust_files": 391,
+        "code_loc": 134436,
+        "source_code_loc": 76425,
+        "test_code_loc": 57690,
+        "comment_loc": 7662,
+        "doc_loc": 3423,
+        "inner_doc_loc": 225,
+        "outer_doc_loc": 3198,
+        "block_comment_loc": 33,
+        "block_doc_loc": 0,
+        "example_code_loc": 321
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "ff0db8f1229c97651d1a9f42922f44be4e5cffbc",
+      "offset": 11474,
+      "timestamp": 1600147733,
+      "metrics": {
+        "rust_files": 368,
+        "code_loc": 124604,
+        "source_code_loc": 70995,
+        "test_code_loc": 53297,
+        "comment_loc": 7465,
+        "doc_loc": 3190,
+        "inner_doc_loc": 221,
+        "outer_doc_loc": 2969,
+        "block_comment_loc": 33,
+        "block_doc_loc": 0,
+        "example_code_loc": 312
+      },
+      "parse_errors": [
+        "common/src/errors/tests.rs: expected an expression at 38:42"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d4ede122fcc54b44d81442d07769261f349adc30",
+      "offset": 11598,
+      "timestamp": 1594093776,
+      "metrics": {
+        "rust_files": 352,
+        "code_loc": 112622,
+        "source_code_loc": 67619,
+        "test_code_loc": 44774,
+        "comment_loc": 7282,
+        "doc_loc": 3007,
+        "inner_doc_loc": 212,
+        "outer_doc_loc": 2795,
+        "block_comment_loc": 91,
+        "block_doc_loc": 0,
+        "example_code_loc": 229
+      },
+      "parse_errors": [
+        "common/benches/and_then.rs: expected an expression at 16:23",
+        "common/src/errors/tests.rs: expected an expression at 38:42",
+        "ecmascript/codegen/benches/bench.rs: expected an expression at 110:32",
+        "ecmascript/codegen/benches/with_parse.rs: expected an expression at 110:32",
+        "ecmascript/codegen/tests/test262.rs: expected an expression at 90:27",
+        "ecmascript/parser/src/parser/typescript.rs: expected an expression at 2408:31",
+        "ecmascript/parser/tests/jsx.rs: expected an expression at 40:27",
+        "ecmascript/parser/tests/test262.rs: expected an expression at 96:27",
+        "ecmascript/parser/tests/typescript.rs: expected an expression at 43:27",
+        "ecmascript/preset_env/tests/test.rs: expected an expression at 161:39",
+        "ecmascript/transforms/benches/base.rs: expected an expression at 227:20",
+        "ecmascript/transforms/src/compat/es2015/block_scoping.rs: expected an expression at 131:25",
+        "ecmascript/transforms/src/compat/es2015/classes.rs: expected an expression at 508:39",
+        "ecmascript/transforms/src/compat/es2015/classes/constructor.rs: expected an expression at 190:46",
+        "ecmascript/transforms/src/compat/es2015/classes/super_field.rs: expected an expression at 129:25",
+        "ecmascript/transforms/src/compat/es2015/computed_props.rs: expected an expression at 80:21",
+        "ecmascript/transforms/src/compat/es2015/destructuring.rs: expected an expression at 206:56",
+        "ecmascript/transforms/src/compat/es2015/duplicate_keys.rs: expected an expression at 59:35",
+        "ecmascript/transforms/src/compat/es2015/for_of.rs: expected an expression at 97:29",
+        "ecmascript/transforms/src/compat/es2015/function_name.rs: expected an expression at 58:21",
+        "ecmascript/transforms/src/compat/es2015/parameters.rs: expected an expression at 40:36",
+        "ecmascript/transforms/src/compat/es2015/regenerator/case.rs: expected an expression at 133:39",
+        "ecmascript/transforms/src/compat/es2015/regenerator/hoist.rs: expected an expression at 42:21",
+        "ecmascript/transforms/src/compat/es2015/regenerator/mod.rs: expected an expression at 224:24",
+        "ecmascript/transforms/src/compat/es2015/shorthand_property.rs: expected an expression at 50:24",
+        "ecmascript/transforms/src/compat/es2015/spread.rs: expected an expression at 103:28",
+        "ecmascript/transforms/src/compat/es2015/sticky_regex.rs: expected an expression at 33:25",
+        "ecmascript/transforms/src/compat/es2015/template_literal.rs: expected an expression at 53:42",
+        "ecmascript/transforms/src/compat/es2016/exponentation.rs: expected an expression at 83:28",
+        "ecmascript/transforms/src/compat/es2017/async_to_generator.rs: expected an expression at 206:32",
+        "ecmascript/transforms/src/compat/es2018/object_rest_spread.rs: expected an expression at 204:40",
+        "ecmascript/transforms/src/compat/es2020/class_properties.rs: expected an expression at 189:31",
+        "ecmascript/transforms/src/compat/es2020/class_properties/private_field.rs: expected an expression at 33:34",
+        "ecmascript/transforms/src/compat/es2020/nullish_coalescing/mod.rs: expected an expression at 74:46",
+        "ecmascript/transforms/src/compat/es2020/opt_chaining.rs: expected an expression at 73:30",
+        "ecmascript/transforms/src/compat/es3/member_expr_lits.rs: expected an expression at 62:21",
+        "ecmascript/transforms/src/fixer.rs: expected an expression at 120:39",
+        "ecmascript/transforms/src/hygiene/ops.rs: expected an expression at 198:28",
+        "ecmascript/transforms/src/macros.rs: expected an expression at 220:5",
+        "ecmascript/transforms/src/modules/amd.rs: expected an expression at 155:41",
+        "ecmascript/transforms/src/modules/common_js.rs: expected an expression at 139:41",
+        "ecmascript/transforms/src/modules/umd.rs: expected an expression at 156:41",
+        "ecmascript/transforms/src/modules/util.rs: expected an expression at 161:27",
+        "ecmascript/transforms/src/optimization/inline_globals.rs: expected an expression at 76:44",
+        "ecmascript/transforms/src/optimization/simplify/branch/mod.rs: expected an expression at 148:55",
+        "ecmascript/transforms/src/optimization/simplify/expr/mod.rs: expected an expression at 252:44",
+        "ecmascript/transforms/src/optimization/simplify/inlining/mod.rs: expected an expression at 253:58",
+        "ecmascript/transforms/src/proposals/decorators.rs: expected an expression at 114:41",
+        "ecmascript/transforms/src/proposals/decorators/legacy.rs: expected an expression at 213:36",
+        "ecmascript/transforms/src/react/display_name.rs: expected an expression at 25:32",
+        "ecmascript/transforms/src/react/jsx.rs: expected an expression at 197:20",
+        "ecmascript/transforms/src/react/jsx_self.rs: expected an expression at 31:37",
+        "ecmascript/transforms/src/react/jsx_src.rs: expected an expression at 38:21",
+        "ecmascript/transforms/src/tests.rs: expected an expression at 137:24",
+        "ecmascript/transforms/src/typescript.rs: expected an expression at 151:39",
+        "ecmascript/transforms/tests/common/mod.rs: expected an expression at 23:5",
+        "ecmascript/transforms/tests/fixer_test262.rs: expected an expression at 111:27",
+        "ecmascript/utils/src/constructor.rs: expected an expression at 149:39",
+        "ecmascript/utils/src/factory.rs: expected an expression at 11:19",
+        "ecmascript/utils/src/lib.rs: expected an expression at 1374:5",
+        "native/src/bundle.rs: expected an expression at 145:13",
+        "spack/src/bundler/chunk/merge.rs: expected an expression at 510:40",
+        "spack/src/bundler/rename.rs: expected an expression at 126:21",
+        "spack/tests/fixture.rs: expected an expression at 42:27",
+        "src/config.rs: expected an expression at 551:47",
+        "src/lib.rs: expected an expression at 208:36",
+        "testing/src/diag_errors.rs: expected an expression at 14:9",
+        "testing/src/string_errors.rs: expected an expression at 15:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4550f7e1af0fb45502470d18c3bb4d2ccfb89e71",
+      "offset": 11721,
+      "timestamp": 1581731042,
+      "metrics": {
+        "rust_files": 304,
+        "code_loc": 101809,
+        "source_code_loc": 59015,
+        "test_code_loc": 42570,
+        "comment_loc": 6924,
+        "doc_loc": 2814,
+        "inner_doc_loc": 211,
+        "outer_doc_loc": 2603,
+        "block_comment_loc": 93,
+        "block_doc_loc": 0,
+        "example_code_loc": 224
+      },
+      "parse_errors": [
+        "common/benches/and_then.rs: expected an expression at 16:23",
+        "common/src/errors/tests.rs: expected an expression at 38:42",
+        "ecmascript/codegen/benches/bench.rs: expected an expression at 108:32",
+        "ecmascript/codegen/tests/test262.rs: expected an expression at 85:27",
+        "ecmascript/parser/tests/jsx.rs: expected an expression at 40:27",
+        "ecmascript/parser/tests/test262.rs: expected an expression at 88:27",
+        "ecmascript/parser/tests/typescript.rs: expected an expression at 43:27",
+        "ecmascript/preset_env/tests/test.rs: expected an expression at 161:39",
+        "ecmascript/transforms/benches/base.rs: expected an expression at 227:20",
+        "ecmascript/transforms/src/compat/es2015/block_scoping.rs: expected an expression at 114:25",
+        "ecmascript/transforms/src/compat/es2015/classes.rs: expected an expression at 503:39",
+        "ecmascript/transforms/src/compat/es2015/classes/constructor.rs: expected an expression at 190:46",
+        "ecmascript/transforms/src/compat/es2015/classes/super_field.rs: expected an expression at 129:25",
+        "ecmascript/transforms/src/compat/es2015/computed_props.rs: expected an expression at 80:21",
+        "ecmascript/transforms/src/compat/es2015/destructuring.rs: expected an expression at 206:56",
+        "ecmascript/transforms/src/compat/es2015/duplicate_keys.rs: expected an expression at 59:35",
+        "ecmascript/transforms/src/compat/es2015/for_of.rs: expected an expression at 99:29",
+        "ecmascript/transforms/src/compat/es2015/function_name.rs: expected an expression at 58:21",
+        "ecmascript/transforms/src/compat/es2015/parameters.rs: expected an expression at 37:36",
+        "ecmascript/transforms/src/compat/es2015/regenerator/case.rs: expected an expression at 133:39",
+        "ecmascript/transforms/src/compat/es2015/regenerator/hoist.rs: expected an expression at 42:21",
+        "ecmascript/transforms/src/compat/es2015/regenerator/mod.rs: expected an expression at 212:24",
+        "ecmascript/transforms/src/compat/es2015/shorthand_property.rs: expected an expression at 50:24",
+        "ecmascript/transforms/src/compat/es2015/spread.rs: expected an expression at 103:28",
+        "ecmascript/transforms/src/compat/es2015/sticky_regex.rs: expected an expression at 33:25",
+        "ecmascript/transforms/src/compat/es2015/template_literal.rs: expected an expression at 53:42",
+        "ecmascript/transforms/src/compat/es2016/exponentation.rs: expected an expression at 83:28",
+        "ecmascript/transforms/src/compat/es2017/async_to_generator.rs: expected an expression at 206:32",
+        "ecmascript/transforms/src/compat/es2018/object_rest_spread.rs: expected an expression at 204:40",
+        "ecmascript/transforms/src/compat/es3/member_expr_lits.rs: expected an expression at 62:21",
+        "ecmascript/transforms/src/fixer.rs: expected an expression at 120:39",
+        "ecmascript/transforms/src/hygiene/ops.rs: expected an expression at 198:28",
+        "ecmascript/transforms/src/macros.rs: expected an expression at 191:5",
+        "ecmascript/transforms/src/modules/amd.rs: expected an expression at 155:41",
+        "ecmascript/transforms/src/modules/common_js.rs: expected an expression at 137:41",
+        "ecmascript/transforms/src/modules/umd.rs: expected an expression at 154:41",
+        "ecmascript/transforms/src/modules/util.rs: expected an expression at 155:27",
+        "ecmascript/transforms/src/optimization/inline_globals.rs: expected an expression at 76:44",
+        "ecmascript/transforms/src/optimization/simplify/branch/mod.rs: expected an expression at 148:55",
+        "ecmascript/transforms/src/optimization/simplify/expr/mod.rs: expected an expression at 252:44",
+        "ecmascript/transforms/src/optimization/simplify/inlining/mod.rs: expected an expression at 253:58",
+        "ecmascript/transforms/src/proposals/class_properties.rs: expected an expression at 189:31",
+        "ecmascript/transforms/src/proposals/class_properties/private_field.rs: expected an expression at 34:34",
+        "ecmascript/transforms/src/proposals/decorators.rs: expected an expression at 114:41",
+        "ecmascript/transforms/src/proposals/decorators/legacy.rs: expected an expression at 212:36",
+        "ecmascript/transforms/src/proposals/nullish_coalescing/mod.rs: expected an expression at 74:46",
+        "ecmascript/transforms/src/proposals/opt_chaining.rs: expected an expression at 73:30",
+        "ecmascript/transforms/src/react/display_name.rs: expected an expression at 25:32",
+        "ecmascript/transforms/src/react/jsx.rs: expected an expression at 197:20",
+        "ecmascript/transforms/src/react/jsx_self.rs: expected an expression at 31:37",
+        "ecmascript/transforms/src/react/jsx_src.rs: expected an expression at 38:21",
+        "ecmascript/transforms/src/tests.rs: expected an expression at 138:24",
+        "ecmascript/transforms/src/typescript.rs: expected an expression at 128:35",
+        "ecmascript/transforms/tests/common/mod.rs: expected an expression at 24:5",
+        "ecmascript/transforms/tests/fixer_test262.rs: expected an expression at 106:27",
+        "ecmascript/utils/src/constructor.rs: expected an expression at 149:39",
+        "ecmascript/utils/src/factory.rs: expected an expression at 11:19",
+        "ecmascript/utils/src/lib.rs: expected an expression at 1368:5",
+        "src/config.rs: expected an expression at 512:21",
+        "src/lib.rs: expected an expression at 148:36",
+        "testing/src/diag_errors.rs: expected an expression at 11:9",
+        "testing/src/string_errors.rs: expected an expression at 15:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "153cf36168f646c9d24d1990c72a63c5eb7ed9d4",
+      "offset": 11844,
+      "timestamp": 1575189164,
+      "metrics": {
+        "rust_files": 260,
+        "code_loc": 76462,
+        "source_code_loc": 66449,
+        "test_code_loc": 9822,
+        "comment_loc": 3290,
+        "doc_loc": 2630,
+        "inner_doc_loc": 209,
+        "outer_doc_loc": 2421,
+        "block_comment_loc": 80,
+        "block_doc_loc": 0,
+        "example_code_loc": 191
+      },
+      "parse_errors": [
+        "common/benches/and_then.rs: expected an expression at 18:23",
+        "common/src/errors/tests.rs: expected an expression at 38:42",
+        "ecmascript/codegen/benches/bench.rs: expected an expression at 110:32",
+        "ecmascript/codegen/tests/test262.rs: expected an expression at 87:27",
+        "ecmascript/parser/tests/jsx.rs: expected an expression at 41:27",
+        "ecmascript/parser/tests/test262.rs: expected an expression at 88:27",
+        "ecmascript/parser/tests/typescript.rs: expected an expression at 43:27",
+        "ecmascript/transforms/benches/base.rs: expected an expression at 220:20",
+        "ecmascript/transforms/src/compat/es2015/classes/constructor.rs: expected an expression at 167:66",
+        "ecmascript/transforms/src/compat/es2015/classes/mod.rs: expected an expression at 360:35",
+        "ecmascript/transforms/src/compat/es2015/classes/super_field.rs: expected an expression at 123:25",
+        "ecmascript/transforms/src/compat/es2015/computed_props/mod.rs: expected an expression at 71:28",
+        "ecmascript/transforms/src/compat/es2015/destructuring/mod.rs: expected an expression at 166:44",
+        "ecmascript/transforms/src/compat/es2015/duplicate_keys/mod.rs: expected an expression at 58:35",
+        "ecmascript/transforms/src/compat/es2015/for_of/mod.rs: expected an expression at 88:26",
+        "ecmascript/transforms/src/compat/es2015/parameters/mod.rs: expected an expression at 37:36",
+        "ecmascript/transforms/src/compat/es2015/shorthand_property.rs: expected an expression at 48:24",
+        "ecmascript/transforms/src/compat/es2015/spread/mod.rs: expected an expression at 88:28",
+        "ecmascript/transforms/src/compat/es2015/sticky_regex.rs: expected an expression at 34:44",
+        "ecmascript/transforms/src/compat/es2015/template_literal/mod.rs: expected an expression at 50:42",
+        "ecmascript/transforms/src/compat/es2016/exponentation.rs: expected an expression at 79:28",
+        "ecmascript/transforms/src/compat/es2017/async_to_generator/mod.rs: expected an expression at 203:32",
+        "ecmascript/transforms/src/compat/es2018/object_rest_spread/mod.rs: expected an expression at 187:49",
+        "ecmascript/transforms/src/compat/es3/member_expr_lits.rs: expected an expression at 61:21",
+        "ecmascript/transforms/src/fixer.rs: expected an expression at 87:39",
+        "ecmascript/transforms/src/hygiene/ops.rs: expected an expression at 188:28",
+        "ecmascript/transforms/src/inline_globals.rs: expected an expression at 74:44",
+        "ecmascript/transforms/src/macros.rs: expected an expression at 190:5",
+        "ecmascript/transforms/src/modules/amd/mod.rs: expected an expression at 151:55",
+        "ecmascript/transforms/src/modules/common_js/mod.rs: expected an expression at 133:72",
+        "ecmascript/transforms/src/modules/umd/mod.rs: expected an expression at 149:55",
+        "ecmascript/transforms/src/modules/util.rs: expected an expression at 154:27",
+        "ecmascript/transforms/src/proposals/class_properties/mod.rs: expected an expression at 187:31",
+        "ecmascript/transforms/src/proposals/class_properties/private_field.rs: expected an expression at 31:34",
+        "ecmascript/transforms/src/proposals/decorators/mod.rs: expected an expression at 90:41",
+        "ecmascript/transforms/src/react/display_name/mod.rs: expected an expression at 22:32",
+        "ecmascript/transforms/src/react/jsx/mod.rs: expected an expression at 192:20",
+        "ecmascript/transforms/src/react/jsx_self/mod.rs: expected an expression at 27:25",
+        "ecmascript/transforms/src/react/jsx_src/mod.rs: expected an expression at 34:17",
+        "ecmascript/transforms/src/simplify/expr/mod.rs: expected an expression at 130:40",
+        "ecmascript/transforms/src/simplify/mod.rs: expected an expression at 105:33",
+        "ecmascript/transforms/src/tests.rs: expected an expression at 138:24",
+        "ecmascript/transforms/src/typescript/mod.rs: expected an expression at 132:35",
+        "ecmascript/transforms/src/typescript/opt_chaining/mod.rs: expected an expression at 74:30",
+        "ecmascript/transforms/src/util/constructor.rs: expected an expression at 135:39",
+        "ecmascript/transforms/src/util/factory.rs: expected an expression at 9:19",
+        "ecmascript/transforms/src/util/mod.rs: expected an expression at 877:5",
+        "ecmascript/transforms/tests/fixer.rs: expected an expression at 108:27",
+        "src/config/mod.rs: expected an expression at 432:21",
+        "src/lib.rs: expected an expression at 110:36",
+        "testing/src/diag_errors.rs: expected an expression at 11:9",
+        "testing/src/string_errors.rs: expected an expression at 15:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "10cb9a4b213e38ca8517f1c1d209f22e61bfc1db",
+      "offset": 11968,
+      "timestamp": 1551231742,
+      "metrics": {
+        "rust_files": 241,
+        "code_loc": 68975,
+        "source_code_loc": 60417,
+        "test_code_loc": 8425,
+        "comment_loc": 2936,
+        "doc_loc": 2460,
+        "inner_doc_loc": 186,
+        "outer_doc_loc": 2274,
+        "block_comment_loc": 79,
+        "block_doc_loc": 0,
+        "example_code_loc": 133
+      },
+      "parse_errors": [
+        "common/benches/and_then.rs: expected an expression at 17:23",
+        "common/src/errors/tests.rs: expected an expression at 38:42",
+        "ecmascript/codegen/benches/bench.rs: expected an expression at 114:32",
+        "ecmascript/codegen/tests/test262.rs: expected an expression at 86:35",
+        "ecmascript/lints/tests/golden.rs: expected an expression at 37:35",
+        "ecmascript/parser/tests/jsx.rs: expected an expression at 43:35",
+        "ecmascript/parser/tests/test262.rs: expected an expression at 85:35",
+        "ecmascript/parser/tests/typescript.rs: expected an expression at 44:35",
+        "ecmascript/transforms/benches/base.rs: expected an expression at 229:20",
+        "ecmascript/transforms/src/compat/es2015/classes/constructor.rs: expected an expression at 167:66",
+        "ecmascript/transforms/src/compat/es2015/classes/mod.rs: expected an expression at 356:35",
+        "ecmascript/transforms/src/compat/es2015/classes/super_field.rs: expected an expression at 120:25",
+        "ecmascript/transforms/src/compat/es2015/computed_props/mod.rs: expected an expression at 71:28",
+        "ecmascript/transforms/src/compat/es2015/destructuring/mod.rs: expected an expression at 160:44",
+        "ecmascript/transforms/src/compat/es2015/duplicate_keys/mod.rs: expected an expression at 57:49",
+        "ecmascript/transforms/src/compat/es2015/for_of/mod.rs: expected an expression at 89:26",
+        "ecmascript/transforms/src/compat/es2015/parameters/mod.rs: expected an expression at 35:36",
+        "ecmascript/transforms/src/compat/es2015/shorthand_property.rs: expected an expression at 48:24",
+        "ecmascript/transforms/src/compat/es2015/spread/mod.rs: expected an expression at 90:28",
+        "ecmascript/transforms/src/compat/es2015/sticky_regex.rs: expected an expression at 34:44",
+        "ecmascript/transforms/src/compat/es2015/template_literal/mod.rs: expected an expression at 22:42",
+        "ecmascript/transforms/src/compat/es2016/exponentation.rs: expected an expression at 79:28",
+        "ecmascript/transforms/src/compat/es2017/async_to_generator/mod.rs: expected an expression at 199:32",
+        "ecmascript/transforms/src/compat/es2018/object_rest_spread/mod.rs: expected an expression at 187:49",
+        "ecmascript/transforms/src/compat/es3/member_expr_lits.rs: expected an expression at 55:21",
+        "ecmascript/transforms/src/fixer.rs: expected an expression at 86:39",
+        "ecmascript/transforms/src/hygiene/ops.rs: expected an expression at 27:32",
+        "ecmascript/transforms/src/inline_globals.rs: expected an expression at 69:48",
+        "ecmascript/transforms/src/modules/amd/mod.rs: expected an expression at 153:55",
+        "ecmascript/transforms/src/modules/common_js/mod.rs: expected an expression at 140:72",
+        "ecmascript/transforms/src/modules/umd/mod.rs: expected an expression at 151:55",
+        "ecmascript/transforms/src/modules/util.rs: expected an expression at 159:27",
+        "ecmascript/transforms/src/proposals/class_properties/mod.rs: expected an expression at 187:31",
+        "ecmascript/transforms/src/proposals/class_properties/private_field.rs: expected an expression at 31:34",
+        "ecmascript/transforms/src/proposals/decorators/mod.rs: expected an expression at 90:41",
+        "ecmascript/transforms/src/react/display_name/mod.rs: expected an expression at 23:32",
+        "ecmascript/transforms/src/react/jsx/mod.rs: expected an expression at 188:20",
+        "ecmascript/transforms/src/react/jsx_self/mod.rs: expected an expression at 28:25",
+        "ecmascript/transforms/src/react/jsx_src/mod.rs: expected an expression at 35:17",
+        "ecmascript/transforms/src/simplify/expr/mod.rs: expected an expression at 129:40",
+        "ecmascript/transforms/src/simplify/mod.rs: expected an expression at 106:33",
+        "ecmascript/transforms/src/tests.rs: expected an expression at 129:24",
+        "ecmascript/transforms/src/typescript/mod.rs: expected an expression at 135:35",
+        "ecmascript/transforms/src/util/constructor.rs: expected an expression at 136:39",
+        "ecmascript/transforms/src/util/factory.rs: expected an expression at 9:19",
+        "ecmascript/transforms/src/util/mod.rs: expected an expression at 877:5",
+        "ecmascript/transforms/tests/fixer.rs: expected an expression at 108:35",
+        "testing/src/errors.rs: expected an expression at 15:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3facfd88105031a3a82a01e9f37b252744c0ed72",
+      "offset": 12091,
+      "timestamp": 1547737076,
+      "metrics": {
+        "rust_files": 200,
+        "code_loc": 43935,
+        "source_code_loc": 37743,
+        "test_code_loc": 6059,
+        "comment_loc": 2119,
+        "doc_loc": 2267,
+        "inner_doc_loc": 181,
+        "outer_doc_loc": 2086,
+        "block_comment_loc": 27,
+        "block_doc_loc": 0,
+        "example_code_loc": 133
+      },
+      "parse_errors": [
+        "common/benches/and_then.rs: expected an expression at 17:23",
+        "common/src/errors/tests.rs: expected an expression at 38:42",
+        "ecmascript/codegen/benches/bench.rs: expected an expression at 109:32",
+        "ecmascript/codegen/src/tests.rs: expected an expression at 43:17",
+        "ecmascript/codegen/src/text_writer/semicolon.rs: expected an expression at 5:5",
+        "ecmascript/codegen/tests/test262.rs: expected an expression at 87:35",
+        "ecmascript/lints/tests/golden.rs: expected an expression at 37:35",
+        "ecmascript/parser/tests/jsx.rs: expected an expression at 37:35",
+        "ecmascript/parser/tests/test262.rs: expected an expression at 84:35",
+        "ecmascript/parser/tests/typescript.rs: expected an expression at 39:35",
+        "ecmascript/transforms/benches/base.rs: expected an expression at 225:20",
+        "ecmascript/transforms/src/compat/es2015/arrow/mod.rs: expected an expression at 118:48",
+        "ecmascript/transforms/src/compat/es2015/classes/mod.rs: expected an expression at 213:62",
+        "ecmascript/transforms/src/compat/es2015/computed_props/mod.rs: expected an expression at 75:28",
+        "ecmascript/transforms/src/compat/es2015/destructuring/mod.rs: expected an expression at 166:44",
+        "ecmascript/transforms/src/compat/es2015/duplicate_keys/mod.rs: expected an expression at 51:49",
+        "ecmascript/transforms/src/compat/es2015/for_of/mod.rs: expected an expression at 89:26",
+        "ecmascript/transforms/src/compat/es2015/parameters/mod.rs: expected an expression at 36:36",
+        "ecmascript/transforms/src/compat/es2015/shorthand_property.rs: expected an expression at 48:24",
+        "ecmascript/transforms/src/compat/es2015/spread.rs: expected an expression at 93:29",
+        "ecmascript/transforms/src/compat/es2015/sticky_regex.rs: expected an expression at 34:44",
+        "ecmascript/transforms/src/compat/es2015/template_literal/mod.rs: expected an expression at 27:42",
+        "ecmascript/transforms/src/compat/es2016/exponentation.rs: expected an expression at 79:28",
+        "ecmascript/transforms/src/compat/es2017/async_to_generator/mod.rs: expected an expression at 210:32",
+        "ecmascript/transforms/src/compat/es2018/object_rest_spread/mod.rs: expected an expression at 194:49",
+        "ecmascript/transforms/src/compat/es3/member_expr_lits.rs: expected an expression at 36:31",
+        "ecmascript/transforms/src/fixer.rs: expected an expression at 19:28",
+        "ecmascript/transforms/src/react/display_name/mod.rs: expected an expression at 23:32",
+        "ecmascript/transforms/src/react/jsx/mod.rs: expected an expression at 174:20",
+        "ecmascript/transforms/src/react/jsx_self/mod.rs: expected an expression at 28:25",
+        "ecmascript/transforms/src/react/jsx_src/mod.rs: expected an expression at 34:17",
+        "ecmascript/transforms/src/scope.rs: expected an expression at 63:32",
+        "ecmascript/transforms/src/simplify/expr/mod.rs: expected an expression at 129:40",
+        "ecmascript/transforms/src/simplify/mod.rs: expected an expression at 112:33",
+        "ecmascript/transforms/src/tests.rs: expected an expression at 105:24",
+        "ecmascript/transforms/src/util/factory.rs: expected an expression at 9:19",
+        "macros/ast_node/src/fold.rs: expected an expression at 107:33",
+        "macros/ast_node/src/spanned.rs: expected an expression at 50:15",
+        "macros/ast_node/src/visit.rs: expected an expression at 82:33",
+        "macros/common/src/binder.rs: expected an expression at 189:38",
+        "macros/common/src/derive/mod.rs: expected an expression at 52:17",
+        "macros/enum_kind/src/expand.rs: expected an expression at 194:68",
+        "macros/string_enum/src/lib.rs: expected an expression at 131:24",
+        "testing/src/errors.rs: expected an expression at 18:32"
+      ],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0f9532dd5d379292cc2d67777a108d88803bad91",
+      "offset": 12215,
+      "timestamp": 1513948023,
+      "metrics": {
+        "rust_files": 18,
+        "code_loc": 1040,
+        "source_code_loc": 1020,
+        "test_code_loc": 20,
+        "comment_loc": 22,
+        "doc_loc": 165,
+        "inner_doc_loc": 138,
+        "outer_doc_loc": 27,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [
+        "macros/eq_ignore_span/src/lib.rs: expected an expression at 64:22"
+      ],
+      "manifest_errors": []
+    }
+  ]
+}</script>
+<script>
+const reportDocument = JSON.parse(document.getElementById('report').textContent)
+const reports = reportDocument.repositories || [reportDocument]
+const preferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('coogles.preferences') || '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch { return {} }
+})()
+for (const [identifier, key] of [['hide-tables', 'hideTables'], ['percentage-mode', 'percentageMode'], ['compact-mode', 'compactMode'], ['hide-points', 'hidePoints']]) {
+  if (typeof preferences[key] === 'boolean') document.getElementById(identifier).checked = preferences[key]
+}
+if (typeof preferences.hideTables !== 'boolean') {
+  try {
+    const saved = localStorage.getItem('coogles.hideTables')
+    if (saved !== null) document.getElementById('hide-tables').checked = saved === 'true'
+  } catch {}
+}
+if (['commits', 'time-1week', 'time', 'time-4weeks'].includes(preferences.axisMode)) {
+  document.getElementById('axis-mode').value = preferences.axisMode
+}
+const series = [
+  { key: 'code_loc', name: 'Code (total)', color: '#ff879c' },
+  { key: 'source_code_loc', name: 'Source code', color: '#f0eb83' },
+  { key: 'test_code_loc', name: 'Tests', color: '#69c7ff' },
+  { key: 'comment_loc', name: '// comments', color: '#ffc56a' },
+  { key: 'doc_loc', name: 'Docs (//! + ///)', color: '#ba9aff' },
+  { key: 'example_code_loc', name: 'Examples', color: '#67dfa6' }
+]
+const enabled = new Set(series.filter(item => !Array.isArray(preferences.enabledSeries) || preferences.enabledSeries.includes(item.key)).map(item => item.key))
+function timestampMonth(timestamp) {
+  const date = new Date(timestamp * 1000)
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function formatMonth(month) {
+  const year = Math.floor(month / 12)
+  return `${year}-${String(month - year * 12 + 1).padStart(2, '0')}`
+}
+const months = reports.flatMap(report => report.snapshots.map(snapshot => timestampMonth(snapshot.timestamp)))
+const firstMonth = Math.min(...months)
+const lastMonth = Math.max(...months)
+const monthCount = lastMonth - firstMonth
+const startMonthInput = document.getElementById('start-month')
+const endMonthInput = document.getElementById('end-month')
+for (const input of [startMonthInput, endMonthInput]) {
+  input.max = String(monthCount)
+  input.disabled = monthCount === 0
+}
+startMonthInput.value = '0'
+endMonthInput.value = String(monthCount)
+let rangePreset = [0, 2, 6, 12, 24].includes(preferences.rangePreset) ? preferences.rangePreset : null
+const savedRange = preferences.dateRange
+if (rangePreset !== null) {
+  startMonthInput.value = String(rangePreset ? Math.max(0, monthCount - rangePreset + 1) : 0)
+} else if (savedRange && Number.isInteger(savedRange.start) && Number.isInteger(savedRange.end)
+  && savedRange.start <= savedRange.end && savedRange.end >= firstMonth && savedRange.start <= lastMonth) {
+  startMonthInput.value = String(Math.max(firstMonth, savedRange.start) - firstMonth)
+  endMonthInput.value = String(Math.min(lastMonth, savedRange.end) - firstMonth)
+} else {
+  rangePreset = 0
+}
+function savePreferences() {
+  try {
+    localStorage.setItem('coogles.preferences', JSON.stringify({
+      axisMode: document.getElementById('axis-mode').value,
+      percentageMode: document.getElementById('percentage-mode').checked,
+      compactMode: document.getElementById('compact-mode').checked,
+      hidePoints: document.getElementById('hide-points').checked,
+      hideTables: document.getElementById('hide-tables').checked,
+      enabledSeries: [...enabled],
+      dateRange: { start: firstMonth + Number(startMonthInput.value), end: firstMonth + Number(endMonthInput.value) },
+      rangePreset
+    }))
+  } catch {}
+}
+function updateDateRange(changed) {
+  let start = Number(startMonthInput.value)
+  let end = Number(endMonthInput.value)
+  if (start > end) {
+    if (changed === 'start-month') {
+      end = start
+      endMonthInput.value = String(end)
+    } else {
+      start = end
+      startMonthInput.value = String(start)
+    }
+  }
+  const startLabel = formatMonth(firstMonth + start)
+  const endLabel = formatMonth(firstMonth + end)
+  document.getElementById('start-month-label').textContent = startLabel
+  document.getElementById('end-month-label').textContent = endLabel
+  startMonthInput.setAttribute('aria-valuetext', startLabel)
+  endMonthInput.setAttribute('aria-valuetext', endLabel)
+  const selected = document.getElementById('range-selected')
+  selected.style.left = `${monthCount ? start / monthCount * 100 : 0}%`
+  selected.style.width = `${monthCount ? (end - start) / monthCount * 100 : 100}%`
+}
+updateDateRange()
+const namespace = 'http://www.w3.org/2000/svg'
+function element(tag, attributes, text) {
+  const node = document.createElementNS(namespace, tag)
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value)
+  if (text !== undefined) node.textContent = text
+  return node
+}
+function renderRepository(report, index) {
+  const section = document.createElement('section')
+  section.id = `repository-${index}`
+  section.innerHTML = document.getElementById('repository-template').innerHTML
+  document.getElementById('repositories').append(section)
+  const getElement = identifier => section.querySelector(`[data-element="${identifier}"]`)
+  const parts = report.repository.split('/').filter(Boolean)
+  const dataIndex = parts.lastIndexOf('data')
+  const inferredUrl = dataIndex >= 0 && parts.length >= dataIndex + 3 ? `https://github.com/${parts[dataIndex + 1]}/${parts[dataIndex + 2]}` : null
+  const repositoryUrl = report.repository_url || inferredUrl
+  const repositoryName = repositoryUrl ? repositoryUrl.split('/').slice(-2).join('/') : (parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1])
+  const link = document.createElement('a')
+  link.textContent = repositoryName
+  link.href = `#${section.id}`
+  link.title = report.repository
+  const entry = document.createElement('li')
+  entry.append(link)
+  document.getElementById('repository-links').append(entry)
+  if (repositoryUrl) {
+    getElement('heading').textContent = repositoryName
+    getElement('heading').href = repositoryUrl
+  } else {
+    getElement('heading').textContent = repositoryName
+  }
+  const allSnapshots = [...report.snapshots].reverse()
+  let snapshots = allSnapshots
+  const svg = getElement('plot')
+  function metricValue(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key]
+    return snapshot.metrics.code_loc > 0 ? snapshot.metrics[key] / snapshot.metrics.code_loc * 100 : 0
+  }
+  function formatMetric(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key].toLocaleString()
+    return snapshot.metrics.code_loc > 0 ? `${metricValue(snapshot, key).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : 'N/A'
+  }
+  function draw() {
+    svg.replaceChildren()
+    getElement('detail').textContent = ''
+    const compact = document.getElementById('compact-mode').checked
+    section.className = compact ? 'compact' : ''
+    getElement('summary').hidden = compact
+    const graphHeight = compact ? 440 : 800
+    const plotBottom = graphHeight - 80
+    const plotHeight = plotBottom - 40
+    svg.setAttribute('viewBox', `0 0 1000 ${graphHeight}`)
+    if (snapshots.length === 0) {
+      svg.append(element('text', { x: 500, y: graphHeight / 2, 'text-anchor': 'middle' }, 'No samples in selected months'))
+      return
+    }
+    const visible = series.filter(item => enabled.has(item.key))
+    const percentageMode = document.getElementById('percentage-mode').checked
+    const hidePoints = document.getElementById('hide-points').checked
+    const values = snapshots.flatMap(snapshot => visible.map(item => metricValue(snapshot, item.key)))
+    const highest = Math.max(0, ...values)
+    const percentageStep = highest > 0 ? 10 ** Math.floor(Math.log10(highest)) / 4 : 1
+    const maximum = percentageMode ? Math.max(percentageStep, Math.ceil(highest / percentageStep) * percentageStep) : Math.max(1, highest) * 1.1
+    const percentageDigits = Math.min(6, Math.max(1, 1 - Math.floor(Math.log10(maximum))))
+    svg.setAttribute('aria-label', percentageMode ? 'Rust metrics as percentages of total code over sampled Git history' : 'Rust line counts over sampled Git history')
+    const axisMode = document.getElementById('axis-mode').value
+    const timeMode = axisMode !== 'commits'
+    const weeks = axisMode === 'time-1week' ? 1 : axisMode === 'time-4weeks' ? 4 : 2
+    const plotted = timeMode ? [...snapshots].sort((left, right) => left.timestamp - right.timestamp) : snapshots
+    const oldest = plotted[0].offset
+    const newest = plotted[plotted.length - 1].offset
+    const earliest = plotted[0].timestamp
+    const latest = plotted[plotted.length - 1].timestamp
+    const timePosition = timestamp => earliest === latest ? 530 : 80 + (timestamp - earliest) / (latest - earliest) * 860
+    const positionX = timeMode ? snapshot => timePosition(snapshot.timestamp) :
+      snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
+    const positionY = value => plotBottom - value / maximum * plotHeight
+    const gridSteps = compact ? 4 : 8
+    for (let index = 0; index <= gridSteps; index++) {
+      const value = maximum * index / gridSteps
+      const height = positionY(value)
+      svg.append(element('line', { x1: 80, x2: 940, y1: height, y2: height, class: 'grid' }))
+      svg.append(element('text', { x: 70, y: height + 4, 'text-anchor': 'end' }, percentageMode ? `${value.toLocaleString(undefined, { maximumFractionDigits: percentageDigits })}%` : Math.round(value).toLocaleString()))
+    }
+    if (timeMode) {
+      const interval = weeks * 7 * 24 * 60 * 60
+      const monday = Date.UTC(1970, 0, 5) / 1000
+      const firstTick = monday + Math.ceil((earliest - monday) / interval) * interval
+      const ticks = []
+      for (let timestamp = firstTick; timestamp <= latest; timestamp += interval) ticks.push(timestamp)
+      const labelEvery = Math.max(1, Math.ceil(ticks.length / 7))
+      ticks.forEach((timestamp, index) => {
+        const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
+        const grid = element('line', { x1: timePosition(timestamp), x2: timePosition(timestamp), y1: 40, y2: plotBottom, class: 'grid', 'stroke-opacity': 0.4 })
+        grid.append(element('title', {}, date))
+        svg.append(grid)
+        if (ticks.length >= 2 && index % labelEvery === 0) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, date))
+        }
+      })
+      if (ticks.length < 2) {
+        for (const timestamp of new Set([earliest, latest])) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, new Date(timestamp * 1000).toISOString().slice(0, 10)))
+        }
+      }
+    } else {
+      const labelEvery = Math.max(1, Math.ceil(plotted.length / 10))
+      plotted.forEach((snapshot, index) => {
+        if (index % labelEvery === 0 || index === plotted.length - 1) {
+          svg.append(element('text', { x: positionX(snapshot), y: plotBottom + 29, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+        }
+      })
+    }
+    const axisTitle = timeMode ? `Commit date (UTC) · every ${weeks === 1 ? 'week' : `${weeks} weeks`}` : 'First-parent commit offset from HEAD · oldest to newest'
+    svg.append(element('text', { x: 510, y: graphHeight - 18, 'text-anchor': 'middle' }, axisTitle))
+    for (const item of visible) {
+      const points = plotted.map(snapshot => `${positionX(snapshot)},${positionY(metricValue(snapshot, item.key))}`).join(' ')
+      svg.append(element('polyline', { points, fill: 'none', stroke: item.color, 'stroke-width': 2.5 }))
+      for (const snapshot of plotted) {
+        const date = new Date(snapshot.timestamp * 1000).toISOString().slice(0, 10)
+        const value = `${item.name}: ${formatMetric(snapshot, item.key)} · ${date}`
+        const circle = element('circle', { cx: positionX(snapshot), cy: positionY(metricValue(snapshot, item.key)), r: 5, fill: hidePoints ? 'transparent' : item.color, tabindex: 0, 'aria-label': value })
+        circle.append(element('title', {}, value))
+        const show = () => { getElement('detail').textContent = value }
+        const clear = () => { getElement('detail').textContent = '' }
+        circle.addEventListener('mouseenter', show)
+        circle.addEventListener('mouseleave', clear)
+        circle.addEventListener('focus', show)
+        circle.addEventListener('blur', clear)
+        svg.append(circle)
+      }
+    }
+  }
+  const failures = snapshots.reduce((total, snapshot) => total + snapshot.parse_errors.length, 0)
+  const manifestFailures = snapshots.reduce((total, snapshot) => total + (snapshot.manifest_errors || []).length, 0)
+  const warnings = []
+  if (report.configuration.history_truncated) warnings.push(`Requested ${report.configuration.requested_commits} commits, but only ${report.configuration.commits} first-parent edges are available. Sampled the available history.`)
+  if (report.configuration.shallow_boundary) warnings.push('Reached a shallow clone boundary. Deepen the clone to include older history.')
+  if (failures) warnings.push(`${failures} file/snapshot parse failures. Inline test counts may be incomplete. Details are in the JSON.`)
+  if (manifestFailures) warnings.push(`${manifestFailures} file/snapshot manifest parse failures. Custom target paths may be incomplete. Details are in the JSON.`)
+  getElement('warning').textContent = warnings.join(' ')
+  function drawTable() {
+    const rows = getElement('rows')
+    rows.replaceChildren()
+    for (const snapshot of snapshots) {
+      const row = document.createElement('tr')
+      for (const value of [`${snapshot.commit.slice(0, 10)} · ~${snapshot.offset}`, ...series.map(item => formatMetric(snapshot, item.key))]) {
+        const cell = document.createElement('td')
+        cell.textContent = value
+        row.append(cell)
+      }
+      rows.append(row)
+    }
+  }
+  function refresh() {
+    const start = firstMonth + Number(startMonthInput.value)
+    const end = firstMonth + Number(endMonthInput.value)
+    snapshots = allSnapshots.filter(snapshot => {
+      const month = timestampMonth(snapshot.timestamp)
+      return month >= start && month <= end
+    })
+    getElement('summary').textContent = `${snapshots.length} stops · ${report.unique_rust_blobs.toLocaleString()} unique Rust file versions · ${report.elapsed_seconds.toFixed(2)}s`
+    draw()
+    drawTable()
+    getElement('table').hidden = document.getElementById('hide-tables').checked
+  }
+  refresh()
+  return { refresh, table: getElement('table') }
+}
+const charts = reports.map(renderRepository)
+const refreshPlots = () => charts.forEach(chart => chart.refresh())
+for (const item of series) {
+  const label = document.createElement('label')
+  label.style.color = item.color
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = enabled.has(item.key)
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) enabled.add(item.key)
+    else enabled.delete(item.key)
+    savePreferences()
+    refreshPlots()
+  })
+  label.append(checkbox, document.createTextNode(item.name))
+  document.getElementById('controls').append(label)
+}
+for (const identifier of ['percentage-mode', 'axis-mode', 'compact-mode', 'hide-points']) {
+  document.getElementById(identifier).addEventListener('change', () => {
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const identifier of ['start-month', 'end-month']) {
+  document.getElementById(identifier).addEventListener('input', () => {
+    rangePreset = null
+    updateDateRange(identifier)
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const [label, months] of [['Last 2 months', 2], ['Last 6 months', 6], ['Last 12 months', 12], ['Last 2 years', 24], ['All time', 0]]) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.textContent = label
+  button.addEventListener('click', () => {
+    rangePreset = months
+    startMonthInput.value = String(months ? Math.max(0, monthCount - months + 1) : 0)
+    endMonthInput.value = String(monthCount)
+    updateDateRange()
+    savePreferences()
+    refreshPlots()
+  })
+  document.getElementById('date-presets').append(button)
+}
+document.getElementById('hide-tables').addEventListener('change', () => {
+  const hidden = document.getElementById('hide-tables').checked
+  savePreferences()
+  charts.forEach(chart => { chart.table.hidden = hidden })
+})
+document.getElementById('download').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(reportDocument, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'report.json'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+})
+</script>
+</html>

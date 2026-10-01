@@ -1,0 +1,2525 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coogles · Rust history</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #11151d; color: #e8edf5 }
+html { scroll-behavior: smooth }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto } }
+body { max-width: 1100px; margin: 32px auto; padding: 0 20px }
+h1 { margin-bottom: 8px } h2 { overflow-wrap: anywhere } p { color: #aebcd0; line-height: 1.5 }
+a { color: #69c7ff }
+#repository-links { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-left: 20px }
+section { margin: 40px 0 64px; scroll-margin-top: 20px }
+section.compact { margin: 12px 0 }
+section.compact h2 { font-size: 18px; margin: 0 0 8px }
+section.compact .detail, section.compact [data-element="warning"] { display: none }
+[data-element="warning"]:empty { display: none }
+.controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0 }
+.options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 16px }
+#date-range { margin: 16px 0; max-width: 480px }
+#date-presets { display: flex; flex-wrap: nowrap; gap: 8px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px }
+#date-presets button { flex: 0 0 auto; white-space: nowrap; padding: 6px 8px; font-size: 12px }
+.range-values { display: flex; justify-content: space-between; gap: 12px; font-size: 13px }
+.range-values span { display: block; margin-top: 4px }
+.range-slider { position: relative; height: 32px; margin-top: 8px }
+.range-track, #range-selected { position: absolute; top: 14px; height: 4px; border-radius: 4px }
+.range-track { left: 0; width: 100%; background: #344056 }
+#range-selected { background: #69c7ff }
+.range-slider input { position: absolute; top: 0; left: 0; width: 100%; height: 32px; margin: 0; background: transparent; appearance: none; pointer-events: none }
+.range-slider input::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #11151d; background: #69c7ff; pointer-events: auto; cursor: grab }
+.range-slider input::-moz-range-track { background: transparent }
+.range-slider input:focus-visible { outline: 2px solid #69c7ff; outline-offset: 4px }
+label { cursor: pointer } input { margin-right: 8px }
+select { margin-left: 8px; padding: 6px; background: #27354b; color: #e8edf5; border: 1px solid #344056; border-radius: 6px }
+svg { width: 100%; background: #191f2b; border-radius: 12px }
+text { fill: #aebcd0; font-size: 13px }
+.grid { stroke: #344056; stroke-width: 1 }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+th, td { padding: 10px; border-bottom: 1px solid #344056; text-align: right }
+th:first-child, td:first-child { text-align: left }
+.scroll { overflow-x: auto } .detail { min-height: 1.5em }
+button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer }
+@media (min-width: 1100px) {
+  :root { --sidebar-width: clamp(224px, calc((100vw - 1000px) / 2), 672px) }
+  body { margin: 32px auto; width: calc(100% - 2 * var(--sidebar-width) - 80px); max-width: 1100px; box-sizing: border-box }
+  #plot-options { position: fixed; top: 32px; left: 20px; width: var(--sidebar-width); max-height: calc(100vh - 64px); overflow-y: auto; box-sizing: border-box; padding: 16px; background: #191f2b; border: 1px solid #344056; border-radius: 12px; font-size: 14px }
+  #plot-options .controls { flex-direction: column; gap: 14px; margin: 0 0 24px }
+  #plot-options .options { flex-direction: column; align-items: stretch; gap: 14px }
+  #plot-options select { display: block; width: 100%; margin: 8px 0 0 }
+  #plot-options #download { width: 100% }
+  #plot-options #date-range { max-width: none }
+}
+</style>
+<h1 id="top">Coogles</h1>
+<nav aria-label="Repositories"><ul id="repository-links"></ul></nav>
+<aside id="plot-options" aria-label="Plot controls">
+<div class="controls" id="controls"></div>
+<div class="options"><label>X axis <select id="axis-mode"><option value="commits">Commit distance</option><option value="time-1week">Time (every week)</option><option value="time">Time (every 2 weeks)</option><option value="time-4weeks">Time (every 4 weeks)</option></select></label> <label><input id="percentage-mode" type="checkbox">Percentage mode</label> <label><input id="hide-tables" type="checkbox">Hide commit tables</label> <label><input id="compact-mode" type="checkbox">Compact</label> <label><input id="hide-points" type="checkbox">Hide points</label></div>
+<div id="date-range">
+<div class="range-values"><label for="start-month">From<span id="start-month-label"></span></label><label for="end-month">To<span id="end-month-label"></span></label></div>
+<div class="range-slider"><div class="range-track"></div><div id="range-selected"></div><input id="start-month" type="range" min="0" max="0" value="0" step="1"><input id="end-month" type="range" min="0" max="0" value="0" step="1"></div>
+<div id="date-presets"></div>
+</div>
+<button id="download">Download JSON</button>
+</aside>
+<main id="repositories"></main>
+<template id="repository-template">
+<h2><a data-element="heading"></a></h2>
+<p data-element="summary"></p>
+<svg data-element="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
+<p class="detail" data-element="detail" aria-live="polite"></p>
+<p data-element="warning"></p>
+<div class="scroll" data-element="table"><table><thead><tr><th>Commit · offset</th><th>Code (total)</th><th>Source code</th><th>Tests</th><th>// comments</th><th>Docs</th><th>Examples</th></tr></thead><tbody data-element="rows"></tbody></table></div>
+</template>
+<script type="application/json" id="report">{
+  "schema_version": 1,
+  "repository": "/home/marc/Projects/coogles/trunk/data/dandavison/delta",
+  "head": "5ddd7fa66ee900b6783e80089174d2170e46f06f",
+  "configuration": {
+    "commits": 1850,
+    "requested_commits": null,
+    "all": true,
+    "history_truncated": false,
+    "shallow_boundary": false,
+    "offsets": [
+      0,
+      18,
+      37,
+      56,
+      74,
+      93,
+      112,
+      130,
+      149,
+      168,
+      186,
+      205,
+      224,
+      242,
+      261,
+      280,
+      298,
+      317,
+      336,
+      355,
+      373,
+      392,
+      411,
+      429,
+      448,
+      467,
+      485,
+      504,
+      523,
+      541,
+      560,
+      579,
+      597,
+      616,
+      635,
+      654,
+      672,
+      691,
+      710,
+      728,
+      747,
+      766,
+      784,
+      803,
+      822,
+      840,
+      859,
+      878,
+      896,
+      915,
+      934,
+      953,
+      971,
+      990,
+      1009,
+      1027,
+      1046,
+      1065,
+      1083,
+      1102,
+      1121,
+      1139,
+      1158,
+      1177,
+      1195,
+      1214,
+      1233,
+      1252,
+      1270,
+      1289,
+      1308,
+      1326,
+      1345,
+      1364,
+      1382,
+      1401,
+      1420,
+      1438,
+      1457,
+      1476,
+      1494,
+      1513,
+      1532,
+      1551,
+      1569,
+      1588,
+      1607,
+      1625,
+      1644,
+      1663,
+      1681,
+      1700,
+      1719,
+      1737,
+      1756,
+      1775,
+      1793,
+      1812,
+      1831,
+      1850
+    ],
+    "traversal": "first-parent",
+    "includes_head": true
+  },
+  "definitions": "Physical nonblank code lines, excluding comments. Source code excludes test code and example code, with overlapping categories excluded only once. Tests include tests/ paths, configured Cargo test targets, test-only items and recognized test functions. Examples include examples/ paths and configured Cargo example targets. Line comments exclude docs, doc_loc includes //! and ///. Trailing comments count, categories may overlap. Block comments and block docs are separate. Source only, no macro expansion or cfg evaluation.",
+  "unique_rust_blobs": 1261,
+  "analyzed_bytes": 21904017,
+  "elapsed_seconds": 2.812644915,
+  "snapshots": [
+    {
+      "commit": "5ddd7fa66ee900b6783e80089174d2170e46f06f",
+      "offset": 0,
+      "timestamp": 1789826426,
+      "metrics": {
+        "rust_files": 82,
+        "code_loc": 25384,
+        "source_code_loc": 12827,
+        "test_code_loc": 12557,
+        "comment_loc": 1370,
+        "doc_loc": 672,
+        "inner_doc_loc": 14,
+        "outer_doc_loc": 658,
+        "block_comment_loc": 42,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bae289e541b27e69d9fdda90e16fb964ada01beb",
+      "offset": 18,
+      "timestamp": 1764171037,
+      "metrics": {
+        "rust_files": 82,
+        "code_loc": 25345,
+        "source_code_loc": 12814,
+        "test_code_loc": 12531,
+        "comment_loc": 1360,
+        "doc_loc": 665,
+        "inner_doc_loc": 14,
+        "outer_doc_loc": 651,
+        "block_comment_loc": 42,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "de1b5a6914b608e473a68529eb72dd09923aef63",
+      "offset": 37,
+      "timestamp": 1740145573,
+      "metrics": {
+        "rust_files": 82,
+        "code_loc": 25166,
+        "source_code_loc": 12794,
+        "test_code_loc": 12372,
+        "comment_loc": 1353,
+        "doc_loc": 665,
+        "inner_doc_loc": 14,
+        "outer_doc_loc": 651,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1a8d3bc994d2c8c6bfcb1965aad4303e97c022f0",
+      "offset": 56,
+      "timestamp": 1731337554,
+      "metrics": {
+        "rust_files": 81,
+        "code_loc": 24741,
+        "source_code_loc": 12589,
+        "test_code_loc": 12152,
+        "comment_loc": 1321,
+        "doc_loc": 663,
+        "inner_doc_loc": 14,
+        "outer_doc_loc": 649,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3ccdd2d21ffbfa8f19ed979b9236f028ac2c8b5f",
+      "offset": 74,
+      "timestamp": 1725832644,
+      "metrics": {
+        "rust_files": 81,
+        "code_loc": 24633,
+        "source_code_loc": 12598,
+        "test_code_loc": 12035,
+        "comment_loc": 1326,
+        "doc_loc": 663,
+        "inner_doc_loc": 14,
+        "outer_doc_loc": 649,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1482d5886cf0fc619b2678592b2615d8f9f46fe4",
+      "offset": 93,
+      "timestamp": 1724503146,
+      "metrics": {
+        "rust_files": 81,
+        "code_loc": 24650,
+        "source_code_loc": 12588,
+        "test_code_loc": 12062,
+        "comment_loc": 1325,
+        "doc_loc": 678,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 678,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1f6cc721580064afdd84048c37ff9d0eb5f44001",
+      "offset": 112,
+      "timestamp": 1723811466,
+      "metrics": {
+        "rust_files": 81,
+        "code_loc": 24646,
+        "source_code_loc": 12584,
+        "test_code_loc": 12062,
+        "comment_loc": 1325,
+        "doc_loc": 678,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 678,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "07e951db2224f94051b6d732f9727d8c2664f01e",
+      "offset": 130,
+      "timestamp": 1721208533,
+      "metrics": {
+        "rust_files": 79,
+        "code_loc": 23676,
+        "source_code_loc": 12157,
+        "test_code_loc": 11519,
+        "comment_loc": 1260,
+        "doc_loc": 642,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 642,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3c6c50e4f5a515f17240a8205e2e6941809dcdff",
+      "offset": 149,
+      "timestamp": 1711107274,
+      "metrics": {
+        "rust_files": 79,
+        "code_loc": 23574,
+        "source_code_loc": 12144,
+        "test_code_loc": 11430,
+        "comment_loc": 1236,
+        "doc_loc": 643,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 643,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1db3aaa493867841f60cfe861feffc36e102c555",
+      "offset": 168,
+      "timestamp": 1709399000,
+      "metrics": {
+        "rust_files": 79,
+        "code_loc": 23409,
+        "source_code_loc": 12096,
+        "test_code_loc": 11313,
+        "comment_loc": 1228,
+        "doc_loc": 619,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 619,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a48a368b423da5190e54c637568264d58a3dbf9d",
+      "offset": 186,
+      "timestamp": 1691888097,
+      "metrics": {
+        "rust_files": 78,
+        "code_loc": 23160,
+        "source_code_loc": 11940,
+        "test_code_loc": 11220,
+        "comment_loc": 1213,
+        "doc_loc": 618,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 618,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e8d4e74c2cf8bc4f82c851da61f9f6c4a4bebb1f",
+      "offset": 205,
+      "timestamp": 1685803324,
+      "metrics": {
+        "rust_files": 78,
+        "code_loc": 23063,
+        "source_code_loc": 11923,
+        "test_code_loc": 11140,
+        "comment_loc": 1208,
+        "doc_loc": 618,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 618,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "22f40da244f9915cfff5dc0bb58f8c92a23c397e",
+      "offset": 224,
+      "timestamp": 1685745818,
+      "metrics": {
+        "rust_files": 78,
+        "code_loc": 23069,
+        "source_code_loc": 11929,
+        "test_code_loc": 11140,
+        "comment_loc": 1208,
+        "doc_loc": 621,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 621,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "37970bd034682579374ebeb8525e597c1e53d130",
+      "offset": 242,
+      "timestamp": 1682521222,
+      "metrics": {
+        "rust_files": 77,
+        "code_loc": 22328,
+        "source_code_loc": 11669,
+        "test_code_loc": 10659,
+        "comment_loc": 1173,
+        "doc_loc": 613,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 613,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a8446c53bb32fa7c2d1fc4cddb4720b737b2cc8a",
+      "offset": 261,
+      "timestamp": 1678046845,
+      "metrics": {
+        "rust_files": 77,
+        "code_loc": 22397,
+        "source_code_loc": 11724,
+        "test_code_loc": 10673,
+        "comment_loc": 1173,
+        "doc_loc": 612,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 612,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "eaa2c55d94c700680fa6e92c2d969201a846533d",
+      "offset": 280,
+      "timestamp": 1670079665,
+      "metrics": {
+        "rust_files": 77,
+        "code_loc": 22441,
+        "source_code_loc": 11754,
+        "test_code_loc": 10687,
+        "comment_loc": 1174,
+        "doc_loc": 612,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 612,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cc0f1dd9681d497fff1e12b5b94eabe0cf68b19f",
+      "offset": 298,
+      "timestamp": 1663084427,
+      "metrics": {
+        "rust_files": 76,
+        "code_loc": 22013,
+        "source_code_loc": 11660,
+        "test_code_loc": 10353,
+        "comment_loc": 1117,
+        "doc_loc": 612,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 612,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b0bed17ccbca78605cdc25ccaa49c21f0cdc0516",
+      "offset": 317,
+      "timestamp": 1656952249,
+      "metrics": {
+        "rust_files": 76,
+        "code_loc": 21919,
+        "source_code_loc": 11648,
+        "test_code_loc": 10271,
+        "comment_loc": 1117,
+        "doc_loc": 605,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 605,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "03d99a56781e71579af8a23d67d233927f87c19e",
+      "offset": 336,
+      "timestamp": 1652459541,
+      "metrics": {
+        "rust_files": 75,
+        "code_loc": 21861,
+        "source_code_loc": 11612,
+        "test_code_loc": 10249,
+        "comment_loc": 1112,
+        "doc_loc": 605,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 605,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "cf04dbc758f8c13d1508d99bf3608a104f127374",
+      "offset": 355,
+      "timestamp": 1646657670,
+      "metrics": {
+        "rust_files": 75,
+        "code_loc": 21590,
+        "source_code_loc": 11428,
+        "test_code_loc": 10162,
+        "comment_loc": 1123,
+        "doc_loc": 606,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 606,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b66d1d371709205525128fcd80ca302630f8ac9e",
+      "offset": 373,
+      "timestamp": 1644280527,
+      "metrics": {
+        "rust_files": 75,
+        "code_loc": 21093,
+        "source_code_loc": 11368,
+        "test_code_loc": 9725,
+        "comment_loc": 1093,
+        "doc_loc": 602,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 602,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a44454d02d3f5424735c798e02a22432f97f86f5",
+      "offset": 392,
+      "timestamp": 1642464007,
+      "metrics": {
+        "rust_files": 75,
+        "code_loc": 20716,
+        "source_code_loc": 11184,
+        "test_code_loc": 9532,
+        "comment_loc": 1080,
+        "doc_loc": 595,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 595,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "056c18645929da1a86de2e2e30ceb6542d1362a0",
+      "offset": 411,
+      "timestamp": 1642120906,
+      "metrics": {
+        "rust_files": 75,
+        "code_loc": 20823,
+        "source_code_loc": 11247,
+        "test_code_loc": 9576,
+        "comment_loc": 1070,
+        "doc_loc": 503,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 503,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "97747ddb434bfb882e91666d8843eae8ca125641",
+      "offset": 429,
+      "timestamp": 1640349645,
+      "metrics": {
+        "rust_files": 74,
+        "code_loc": 20366,
+        "source_code_loc": 11003,
+        "test_code_loc": 9363,
+        "comment_loc": 1060,
+        "doc_loc": 496,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 496,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3ce64ddefb896f8a64013deb78235b4dda1d0fb8",
+      "offset": 448,
+      "timestamp": 1639370074,
+      "metrics": {
+        "rust_files": 74,
+        "code_loc": 20286,
+        "source_code_loc": 10956,
+        "test_code_loc": 9330,
+        "comment_loc": 1059,
+        "doc_loc": 487,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 487,
+        "block_comment_loc": 37,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5ea8dfc4331f072eff4db3e4827e9b7985433a8a",
+      "offset": 467,
+      "timestamp": 1639026854,
+      "metrics": {
+        "rust_files": 74,
+        "code_loc": 20069,
+        "source_code_loc": 10825,
+        "test_code_loc": 9244,
+        "comment_loc": 1046,
+        "doc_loc": 487,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 487,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "31b402a7cefea5c4c434280ddad32bbd7e88ac0e",
+      "offset": 485,
+      "timestamp": 1638753254,
+      "metrics": {
+        "rust_files": 74,
+        "code_loc": 19745,
+        "source_code_loc": 10865,
+        "test_code_loc": 8880,
+        "comment_loc": 1041,
+        "doc_loc": 485,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 485,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5b8ce8c182b250f4f53f8b65dbf17e4771b2ddc7",
+      "offset": 504,
+      "timestamp": 1638581511,
+      "metrics": {
+        "rust_files": 73,
+        "code_loc": 18143,
+        "source_code_loc": 10338,
+        "test_code_loc": 7805,
+        "comment_loc": 1025,
+        "doc_loc": 471,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 471,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "91819a7cb1ce916d409bdab02232811da522ca5a",
+      "offset": 523,
+      "timestamp": 1638151568,
+      "metrics": {
+        "rust_files": 73,
+        "code_loc": 17931,
+        "source_code_loc": 10270,
+        "test_code_loc": 7661,
+        "comment_loc": 1002,
+        "doc_loc": 471,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 471,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "db7558e439394e31224d788c01eb4c396583111c",
+      "offset": 541,
+      "timestamp": 1637861462,
+      "metrics": {
+        "rust_files": 73,
+        "code_loc": 17900,
+        "source_code_loc": 10235,
+        "test_code_loc": 7665,
+        "comment_loc": 989,
+        "doc_loc": 466,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 466,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "17ad9785a63c8682953c1ea8c01a0f094b7d65e3",
+      "offset": 560,
+      "timestamp": 1637611266,
+      "metrics": {
+        "rust_files": 70,
+        "code_loc": 17394,
+        "source_code_loc": 9730,
+        "test_code_loc": 7664,
+        "comment_loc": 970,
+        "doc_loc": 455,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 455,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "90fd9c60493cc6f653e76277d67e1fce611bbb1d",
+      "offset": 579,
+      "timestamp": 1637174540,
+      "metrics": {
+        "rust_files": 66,
+        "code_loc": 15581,
+        "source_code_loc": 8782,
+        "test_code_loc": 6799,
+        "comment_loc": 829,
+        "doc_loc": 437,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 437,
+        "block_comment_loc": 36,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "56c47ed24d34964b17e220fdc448e23987d1131a",
+      "offset": 597,
+      "timestamp": 1636299773,
+      "metrics": {
+        "rust_files": 63,
+        "code_loc": 14854,
+        "source_code_loc": 8287,
+        "test_code_loc": 6567,
+        "comment_loc": 799,
+        "doc_loc": 430,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 430,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0745f853d4bed52aca0b6739ac452d54ff54a153",
+      "offset": 616,
+      "timestamp": 1635274165,
+      "metrics": {
+        "rust_files": 63,
+        "code_loc": 14880,
+        "source_code_loc": 8313,
+        "test_code_loc": 6567,
+        "comment_loc": 794,
+        "doc_loc": 436,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 436,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "87a429da9c3d99ac4657b4f00e7ccf24aff64f15",
+      "offset": 635,
+      "timestamp": 1634397874,
+      "metrics": {
+        "rust_files": 64,
+        "code_loc": 14738,
+        "source_code_loc": 8315,
+        "test_code_loc": 6423,
+        "comment_loc": 782,
+        "doc_loc": 433,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 433,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f9caf7a2c6ecfcdadffab90cbed8c8620b521e73",
+      "offset": 654,
+      "timestamp": 1630375640,
+      "metrics": {
+        "rust_files": 62,
+        "code_loc": 13323,
+        "source_code_loc": 7526,
+        "test_code_loc": 5797,
+        "comment_loc": 677,
+        "doc_loc": 395,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 395,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d29bf95767d6b03075ac6382ce8e2034fd753725",
+      "offset": 672,
+      "timestamp": 1629519244,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12828,
+        "source_code_loc": 7130,
+        "test_code_loc": 5698,
+        "comment_loc": 666,
+        "doc_loc": 379,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 379,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f956a38bfcdb54b8e8e36557361a553d14387794",
+      "offset": 691,
+      "timestamp": 1627891930,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12782,
+        "source_code_loc": 7109,
+        "test_code_loc": 5673,
+        "comment_loc": 655,
+        "doc_loc": 379,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 379,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d69128b173287939fe30357e146201f68f5b17c4",
+      "offset": 710,
+      "timestamp": 1625591967,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12687,
+        "source_code_loc": 7071,
+        "test_code_loc": 5616,
+        "comment_loc": 652,
+        "doc_loc": 379,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 379,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "fc5f3838337c9fcca7e5f1bc8894d53c20c52874",
+      "offset": 728,
+      "timestamp": 1623340179,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12619,
+        "source_code_loc": 7044,
+        "test_code_loc": 5575,
+        "comment_loc": 645,
+        "doc_loc": 379,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 379,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "feb89ac4387524c7ab571065cec7a190d1917f16",
+      "offset": 747,
+      "timestamp": 1621541801,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12573,
+        "source_code_loc": 7010,
+        "test_code_loc": 5563,
+        "comment_loc": 641,
+        "doc_loc": 368,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 368,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "598c2e3f1498a7e590ed764de7026cfed69ded71",
+      "offset": 766,
+      "timestamp": 1619198416,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12341,
+        "source_code_loc": 6843,
+        "test_code_loc": 5498,
+        "comment_loc": 605,
+        "doc_loc": 362,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 362,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "48fe43fff329e14a74cb1876d040a0de3b29fe8c",
+      "offset": 784,
+      "timestamp": 1617017665,
+      "metrics": {
+        "rust_files": 48,
+        "code_loc": 12324,
+        "source_code_loc": 6826,
+        "test_code_loc": 5498,
+        "comment_loc": 517,
+        "doc_loc": 447,
+        "inner_doc_loc": 20,
+        "outer_doc_loc": 427,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "64c93a7f8a4babe7ef794ed053cb06baef1dcd3b",
+      "offset": 803,
+      "timestamp": 1613575210,
+      "metrics": {
+        "rust_files": 47,
+        "code_loc": 12031,
+        "source_code_loc": 6552,
+        "test_code_loc": 5479,
+        "comment_loc": 496,
+        "doc_loc": 437,
+        "inner_doc_loc": 20,
+        "outer_doc_loc": 417,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "b207a5924a9a11705f3da8da8d59248c86c34ab4",
+      "offset": 822,
+      "timestamp": 1609868551,
+      "metrics": {
+        "rust_files": 47,
+        "code_loc": 11805,
+        "source_code_loc": 6502,
+        "test_code_loc": 5303,
+        "comment_loc": 479,
+        "doc_loc": 439,
+        "inner_doc_loc": 20,
+        "outer_doc_loc": 419,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9563c5ef98503f4b2c0b35601d08f96dc8fa6817",
+      "offset": 840,
+      "timestamp": 1609240519,
+      "metrics": {
+        "rust_files": 47,
+        "code_loc": 11793,
+        "source_code_loc": 6492,
+        "test_code_loc": 5301,
+        "comment_loc": 478,
+        "doc_loc": 412,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 412,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f501e23887c1878ece1c6ece56cb751135b34c26",
+      "offset": 859,
+      "timestamp": 1608728614,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11672,
+        "source_code_loc": 6489,
+        "test_code_loc": 5183,
+        "comment_loc": 502,
+        "doc_loc": 407,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 407,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f83f53f9d3188b657d0659c264eef5cd327c05bc",
+      "offset": 878,
+      "timestamp": 1607300800,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11502,
+        "source_code_loc": 6441,
+        "test_code_loc": 5061,
+        "comment_loc": 473,
+        "doc_loc": 406,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 406,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0ecbe6e70afeefc1d2722dbf81ce557ebedbec03",
+      "offset": 896,
+      "timestamp": 1606941665,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11388,
+        "source_code_loc": 6421,
+        "test_code_loc": 4967,
+        "comment_loc": 474,
+        "doc_loc": 400,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 400,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "02dc6e053e72cd3cd5195e10d286c11509463a96",
+      "offset": 915,
+      "timestamp": 1605921246,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11266,
+        "source_code_loc": 6389,
+        "test_code_loc": 4877,
+        "comment_loc": 470,
+        "doc_loc": 399,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 399,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "bcd1f65ee387b400978335b7b2c94c06f51c33a5",
+      "offset": 934,
+      "timestamp": 1604094586,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11251,
+        "source_code_loc": 6418,
+        "test_code_loc": 4833,
+        "comment_loc": 469,
+        "doc_loc": 399,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 399,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "1dbfd35b541fe5e4c30a2c28c85884e552630e0b",
+      "offset": 953,
+      "timestamp": 1601951933,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11249,
+        "source_code_loc": 6416,
+        "test_code_loc": 4833,
+        "comment_loc": 469,
+        "doc_loc": 400,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 400,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "344355e02876629c6b6fb908c564ad844e497ab9",
+      "offset": 971,
+      "timestamp": 1599140962,
+      "metrics": {
+        "rust_files": 46,
+        "code_loc": 11150,
+        "source_code_loc": 6401,
+        "test_code_loc": 4749,
+        "comment_loc": 467,
+        "doc_loc": 399,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 399,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2231a4cbe8e725a6614ec1a95516c48cb81ffc8f",
+      "offset": 990,
+      "timestamp": 1596905266,
+      "metrics": {
+        "rust_files": 45,
+        "code_loc": 10700,
+        "source_code_loc": 6186,
+        "test_code_loc": 4514,
+        "comment_loc": 406,
+        "doc_loc": 394,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 394,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "66f072e347c6bc7919daadb4eb34bd5077ad26e9",
+      "offset": 1009,
+      "timestamp": 1596507276,
+      "metrics": {
+        "rust_files": 45,
+        "code_loc": 10614,
+        "source_code_loc": 6151,
+        "test_code_loc": 4463,
+        "comment_loc": 397,
+        "doc_loc": 394,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 394,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "08b9de49e7a0327c63c78ad348ce83d08e619ae6",
+      "offset": 1027,
+      "timestamp": 1596462423,
+      "metrics": {
+        "rust_files": 45,
+        "code_loc": 10614,
+        "source_code_loc": 6151,
+        "test_code_loc": 4463,
+        "comment_loc": 397,
+        "doc_loc": 394,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 394,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a2e4702359bb1f1b97010d9da2bb75d09a55878d",
+      "offset": 1046,
+      "timestamp": 1596147130,
+      "metrics": {
+        "rust_files": 42,
+        "code_loc": 10010,
+        "source_code_loc": 5757,
+        "test_code_loc": 4253,
+        "comment_loc": 351,
+        "doc_loc": 383,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 383,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "6d8a9d121a5ddbb6b7fd2d69769a0def05b06172",
+      "offset": 1065,
+      "timestamp": 1594819986,
+      "metrics": {
+        "rust_files": 39,
+        "code_loc": 9460,
+        "source_code_loc": 5458,
+        "test_code_loc": 4002,
+        "comment_loc": 346,
+        "doc_loc": 363,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 363,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "775834c14cecc632520e132f6ed6f7a8092ebd6f",
+      "offset": 1083,
+      "timestamp": 1594488114,
+      "metrics": {
+        "rust_files": 39,
+        "code_loc": 9463,
+        "source_code_loc": 5461,
+        "test_code_loc": 4002,
+        "comment_loc": 346,
+        "doc_loc": 360,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 360,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "0037c746ca6200874873e7cafaaa2774f95e0c11",
+      "offset": 1102,
+      "timestamp": 1594335650,
+      "metrics": {
+        "rust_files": 38,
+        "code_loc": 8893,
+        "source_code_loc": 4933,
+        "test_code_loc": 3960,
+        "comment_loc": 311,
+        "doc_loc": 334,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 334,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "22a2fac5f3d77103d47b855c63e1599b254d43c9",
+      "offset": 1121,
+      "timestamp": 1594006012,
+      "metrics": {
+        "rust_files": 38,
+        "code_loc": 8679,
+        "source_code_loc": 4813,
+        "test_code_loc": 3866,
+        "comment_loc": 307,
+        "doc_loc": 328,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 328,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "917ae8fae9f2d0c109a3fcff498ea6cab31b3c85",
+      "offset": 1139,
+      "timestamp": 1593626284,
+      "metrics": {
+        "rust_files": 38,
+        "code_loc": 8669,
+        "source_code_loc": 4803,
+        "test_code_loc": 3866,
+        "comment_loc": 303,
+        "doc_loc": 327,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 327,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c8d24c27cbb886c109e02c679ddb68dfe18c129c",
+      "offset": 1158,
+      "timestamp": 1593518430,
+      "metrics": {
+        "rust_files": 39,
+        "code_loc": 8553,
+        "source_code_loc": 4687,
+        "test_code_loc": 3866,
+        "comment_loc": 298,
+        "doc_loc": 314,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 314,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "07a1faca2bb5f57119e114f8223cab1f044f1949",
+      "offset": 1177,
+      "timestamp": 1593369849,
+      "metrics": {
+        "rust_files": 36,
+        "code_loc": 8502,
+        "source_code_loc": 4637,
+        "test_code_loc": 3865,
+        "comment_loc": 298,
+        "doc_loc": 312,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 312,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "22f39d5403c0c6500e519f11562787bc812ded61",
+      "offset": 1195,
+      "timestamp": 1593178536,
+      "metrics": {
+        "rust_files": 35,
+        "code_loc": 8301,
+        "source_code_loc": 4428,
+        "test_code_loc": 3873,
+        "comment_loc": 286,
+        "doc_loc": 313,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 313,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f635d87938a0b3d74e90e8e0e9aadb65e7d3bb93",
+      "offset": 1214,
+      "timestamp": 1592793744,
+      "metrics": {
+        "rust_files": 34,
+        "code_loc": 7919,
+        "source_code_loc": 4254,
+        "test_code_loc": 3665,
+        "comment_loc": 276,
+        "doc_loc": 269,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 269,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "3aaa9606e6a64e8dd16fb46520da01a8186367da",
+      "offset": 1233,
+      "timestamp": 1592676740,
+      "metrics": {
+        "rust_files": 30,
+        "code_loc": 7659,
+        "source_code_loc": 4131,
+        "test_code_loc": 3528,
+        "comment_loc": 280,
+        "doc_loc": 246,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 246,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "55e6a0135318a76d66428bc07268187ed2fabdaf",
+      "offset": 1252,
+      "timestamp": 1592254248,
+      "metrics": {
+        "rust_files": 28,
+        "code_loc": 7250,
+        "source_code_loc": 3957,
+        "test_code_loc": 3293,
+        "comment_loc": 270,
+        "doc_loc": 220,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 220,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "7407f9f40e9287762a13283691e002246f3f6252",
+      "offset": 1270,
+      "timestamp": 1591886077,
+      "metrics": {
+        "rust_files": 26,
+        "code_loc": 6877,
+        "source_code_loc": 3903,
+        "test_code_loc": 2974,
+        "comment_loc": 245,
+        "doc_loc": 226,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 226,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "78f595a5c81a9eb40dc7ca29acba158f4584db80",
+      "offset": 1289,
+      "timestamp": 1591814143,
+      "metrics": {
+        "rust_files": 26,
+        "code_loc": 6734,
+        "source_code_loc": 3903,
+        "test_code_loc": 2831,
+        "comment_loc": 238,
+        "doc_loc": 228,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 228,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "8bc49f382b9a0c6a64d21e72cd47bcf857f31034",
+      "offset": 1308,
+      "timestamp": 1591291076,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 6037,
+        "source_code_loc": 3298,
+        "test_code_loc": 2739,
+        "comment_loc": 234,
+        "doc_loc": 189,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 189,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9135cb54adfe9bea960db0701cbebed22ddf8efd",
+      "offset": 1326,
+      "timestamp": 1590986465,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 5361,
+        "source_code_loc": 3014,
+        "test_code_loc": 2347,
+        "comment_loc": 227,
+        "doc_loc": 175,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 175,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "503ae23ad78562284b832ab2463b0955c1c664bb",
+      "offset": 1345,
+      "timestamp": 1590872703,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 5095,
+        "source_code_loc": 2918,
+        "test_code_loc": 2177,
+        "comment_loc": 228,
+        "doc_loc": 175,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 175,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "284392c7580e082070e0b9c05d712da65d52c943",
+      "offset": 1364,
+      "timestamp": 1590609527,
+      "metrics": {
+        "rust_files": 25,
+        "code_loc": 4755,
+        "source_code_loc": 2836,
+        "test_code_loc": 1919,
+        "comment_loc": 217,
+        "doc_loc": 169,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 169,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "eb6518cad198ca7215ef0118eca50dd580b0518d",
+      "offset": 1382,
+      "timestamp": 1589990134,
+      "metrics": {
+        "rust_files": 22,
+        "code_loc": 4043,
+        "source_code_loc": 2363,
+        "test_code_loc": 1680,
+        "comment_loc": 203,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2f8a9b563d58e596ec940bb34daf9d3e6ceb9511",
+      "offset": 1401,
+      "timestamp": 1588676525,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3604,
+        "source_code_loc": 2243,
+        "test_code_loc": 1361,
+        "comment_loc": 178,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c8db05e3165658d21a6e25e5746c6b22dc2187f8",
+      "offset": 1420,
+      "timestamp": 1588179367,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3574,
+        "source_code_loc": 2214,
+        "test_code_loc": 1360,
+        "comment_loc": 178,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "65f56d593e9b770d827e0628c530f74585b9d849",
+      "offset": 1438,
+      "timestamp": 1588083599,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3574,
+        "source_code_loc": 2214,
+        "test_code_loc": 1360,
+        "comment_loc": 178,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9732c888eea48038f4d34d67a80999907a04ee50",
+      "offset": 1457,
+      "timestamp": 1587942959,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3575,
+        "source_code_loc": 2215,
+        "test_code_loc": 1360,
+        "comment_loc": 178,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "16f83e8873865e5672a17c082cb4d0975d430b55",
+      "offset": 1476,
+      "timestamp": 1587827177,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3484,
+        "source_code_loc": 2210,
+        "test_code_loc": 1274,
+        "comment_loc": 178,
+        "doc_loc": 142,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 142,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "9557639e098d6bd3bd5fc57931297a8f7cc643a9",
+      "offset": 1494,
+      "timestamp": 1587049566,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3417,
+        "source_code_loc": 2212,
+        "test_code_loc": 1205,
+        "comment_loc": 162,
+        "doc_loc": 143,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 143,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "5293dba7560be300530838c117559746d2b4a4e7",
+      "offset": 1513,
+      "timestamp": 1583252195,
+      "metrics": {
+        "rust_files": 16,
+        "code_loc": 3283,
+        "source_code_loc": 2156,
+        "test_code_loc": 1127,
+        "comment_loc": 152,
+        "doc_loc": 141,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 141,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c8b01b741efe8e392910012c902f1ff63456a1f1",
+      "offset": 1532,
+      "timestamp": 1581087724,
+      "metrics": {
+        "rust_files": 15,
+        "code_loc": 2957,
+        "source_code_loc": 1886,
+        "test_code_loc": 1071,
+        "comment_loc": 146,
+        "doc_loc": 126,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 126,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "716c37f219f78b8021284773fece528a1e8cd918",
+      "offset": 1551,
+      "timestamp": 1575488682,
+      "metrics": {
+        "rust_files": 14,
+        "code_loc": 2847,
+        "source_code_loc": 1818,
+        "test_code_loc": 1029,
+        "comment_loc": 140,
+        "doc_loc": 122,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 122,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "92b7fd5d5f04d0b2043806f244ab0953ecbf3de3",
+      "offset": 1569,
+      "timestamp": 1571376373,
+      "metrics": {
+        "rust_files": 13,
+        "code_loc": 2422,
+        "source_code_loc": 1710,
+        "test_code_loc": 712,
+        "comment_loc": 103,
+        "doc_loc": 82,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 82,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "e2b6da0dd429339ccfd6a67739fc1595afad41c7",
+      "offset": 1588,
+      "timestamp": 1569878067,
+      "metrics": {
+        "rust_files": 13,
+        "code_loc": 2374,
+        "source_code_loc": 1665,
+        "test_code_loc": 709,
+        "comment_loc": 99,
+        "doc_loc": 73,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 73,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "da75f535aae3add7e2f8deb2a8f44762ba3dd094",
+      "offset": 1607,
+      "timestamp": 1565576590,
+      "metrics": {
+        "rust_files": 13,
+        "code_loc": 2366,
+        "source_code_loc": 1658,
+        "test_code_loc": 708,
+        "comment_loc": 98,
+        "doc_loc": 73,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 73,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "402eace86e579e9666eb879f3637f0c5d09d6c05",
+      "offset": 1625,
+      "timestamp": 1565160344,
+      "metrics": {
+        "rust_files": 13,
+        "code_loc": 2179,
+        "source_code_loc": 1585,
+        "test_code_loc": 594,
+        "comment_loc": 89,
+        "doc_loc": 71,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 71,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "a8bdc88ac2a3e4837ca109d6c46516c5cd303ef0",
+      "offset": 1644,
+      "timestamp": 1564369390,
+      "metrics": {
+        "rust_files": 12,
+        "code_loc": 1869,
+        "source_code_loc": 1424,
+        "test_code_loc": 445,
+        "comment_loc": 71,
+        "doc_loc": 61,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 61,
+        "block_comment_loc": 15,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "c8d665462e9a4375730441f9a686f88f5da9385c",
+      "offset": 1663,
+      "timestamp": 1564004691,
+      "metrics": {
+        "rust_files": 12,
+        "code_loc": 1830,
+        "source_code_loc": 1428,
+        "test_code_loc": 402,
+        "comment_loc": 66,
+        "doc_loc": 66,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 66,
+        "block_comment_loc": 20,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "003d3c464888f603df63b727adab639b024a6ab3",
+      "offset": 1681,
+      "timestamp": 1563660627,
+      "metrics": {
+        "rust_files": 12,
+        "code_loc": 1806,
+        "source_code_loc": 1407,
+        "test_code_loc": 399,
+        "comment_loc": 57,
+        "doc_loc": 54,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 54,
+        "block_comment_loc": 20,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "6b033a3b0a7fa859354ff2c21e1fb4e5fe4a1cc2",
+      "offset": 1700,
+      "timestamp": 1563340647,
+      "metrics": {
+        "rust_files": 12,
+        "code_loc": 1651,
+        "source_code_loc": 1305,
+        "test_code_loc": 346,
+        "comment_loc": 55,
+        "doc_loc": 52,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 52,
+        "block_comment_loc": 20,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "252df1c1028c98796ebd76ddc1645c10a186f36e",
+      "offset": 1719,
+      "timestamp": 1563203959,
+      "metrics": {
+        "rust_files": 11,
+        "code_loc": 1435,
+        "source_code_loc": 1243,
+        "test_code_loc": 192,
+        "comment_loc": 79,
+        "doc_loc": 51,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 51,
+        "block_comment_loc": 20,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "58f4cbfffc8d5f52df8fc510e3dcdc93ed9d2551",
+      "offset": 1737,
+      "timestamp": 1562907932,
+      "metrics": {
+        "rust_files": 7,
+        "code_loc": 1271,
+        "source_code_loc": 1077,
+        "test_code_loc": 194,
+        "comment_loc": 77,
+        "doc_loc": 45,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 45,
+        "block_comment_loc": 20,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "d75727ff348ef657709bf621810dbc28711359d7",
+      "offset": 1756,
+      "timestamp": 1561955803,
+      "metrics": {
+        "rust_files": 5,
+        "code_loc": 602,
+        "source_code_loc": 602,
+        "test_code_loc": 0,
+        "comment_loc": 38,
+        "doc_loc": 28,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 28,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "2d9b3c025db1f096daeb4f1ca31ba6adb1ec7c22",
+      "offset": 1775,
+      "timestamp": 1561924962,
+      "metrics": {
+        "rust_files": 4,
+        "code_loc": 435,
+        "source_code_loc": 435,
+        "test_code_loc": 0,
+        "comment_loc": 19,
+        "doc_loc": 30,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 30,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "adcef5f72363c24b5723536a15d4214b11c5afa5",
+      "offset": 1793,
+      "timestamp": 1561696753,
+      "metrics": {
+        "rust_files": 3,
+        "code_loc": 286,
+        "source_code_loc": 286,
+        "test_code_loc": 0,
+        "comment_loc": 3,
+        "doc_loc": 26,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 26,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "67b05c6f2e74bfef7f2e339ccbbac01e92c34e3c",
+      "offset": 1812,
+      "timestamp": 1561599920,
+      "metrics": {
+        "rust_files": 2,
+        "code_loc": 187,
+        "source_code_loc": 187,
+        "test_code_loc": 0,
+        "comment_loc": 3,
+        "doc_loc": 15,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 15,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "f076e143e4befe7271187ae52652a0079f1733d3",
+      "offset": 1831,
+      "timestamp": 1561557541,
+      "metrics": {
+        "rust_files": 1,
+        "code_loc": 135,
+        "source_code_loc": 135,
+        "test_code_loc": 0,
+        "comment_loc": 5,
+        "doc_loc": 7,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 7,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    },
+    {
+      "commit": "4a3ebfa4d63b870c06db0d34f148bfc76651283e",
+      "offset": 1850,
+      "timestamp": 1561325292,
+      "metrics": {
+        "rust_files": 0,
+        "code_loc": 0,
+        "source_code_loc": 0,
+        "test_code_loc": 0,
+        "comment_loc": 0,
+        "doc_loc": 0,
+        "inner_doc_loc": 0,
+        "outer_doc_loc": 0,
+        "block_comment_loc": 0,
+        "block_doc_loc": 0,
+        "example_code_loc": 0
+      },
+      "parse_errors": [],
+      "manifest_errors": []
+    }
+  ]
+}</script>
+<script>
+const reportDocument = JSON.parse(document.getElementById('report').textContent)
+const reports = reportDocument.repositories || [reportDocument]
+const preferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('coogles.preferences') || '{}')
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  } catch { return {} }
+})()
+for (const [identifier, key] of [['hide-tables', 'hideTables'], ['percentage-mode', 'percentageMode'], ['compact-mode', 'compactMode'], ['hide-points', 'hidePoints']]) {
+  if (typeof preferences[key] === 'boolean') document.getElementById(identifier).checked = preferences[key]
+}
+if (typeof preferences.hideTables !== 'boolean') {
+  try {
+    const saved = localStorage.getItem('coogles.hideTables')
+    if (saved !== null) document.getElementById('hide-tables').checked = saved === 'true'
+  } catch {}
+}
+if (['commits', 'time-1week', 'time', 'time-4weeks'].includes(preferences.axisMode)) {
+  document.getElementById('axis-mode').value = preferences.axisMode
+}
+const series = [
+  { key: 'code_loc', name: 'Code (total)', color: '#ff879c' },
+  { key: 'source_code_loc', name: 'Source code', color: '#f0eb83' },
+  { key: 'test_code_loc', name: 'Tests', color: '#69c7ff' },
+  { key: 'comment_loc', name: '// comments', color: '#ffc56a' },
+  { key: 'doc_loc', name: 'Docs (//! + ///)', color: '#ba9aff' },
+  { key: 'example_code_loc', name: 'Examples', color: '#67dfa6' }
+]
+const enabled = new Set(series.filter(item => !Array.isArray(preferences.enabledSeries) || preferences.enabledSeries.includes(item.key)).map(item => item.key))
+function timestampMonth(timestamp) {
+  const date = new Date(timestamp * 1000)
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function formatMonth(month) {
+  const year = Math.floor(month / 12)
+  return `${year}-${String(month - year * 12 + 1).padStart(2, '0')}`
+}
+const months = reports.flatMap(report => report.snapshots.map(snapshot => timestampMonth(snapshot.timestamp)))
+const firstMonth = Math.min(...months)
+const lastMonth = Math.max(...months)
+const monthCount = lastMonth - firstMonth
+const startMonthInput = document.getElementById('start-month')
+const endMonthInput = document.getElementById('end-month')
+for (const input of [startMonthInput, endMonthInput]) {
+  input.max = String(monthCount)
+  input.disabled = monthCount === 0
+}
+startMonthInput.value = '0'
+endMonthInput.value = String(monthCount)
+let rangePreset = [0, 2, 6, 12, 24].includes(preferences.rangePreset) ? preferences.rangePreset : null
+const savedRange = preferences.dateRange
+if (rangePreset !== null) {
+  startMonthInput.value = String(rangePreset ? Math.max(0, monthCount - rangePreset + 1) : 0)
+} else if (savedRange && Number.isInteger(savedRange.start) && Number.isInteger(savedRange.end)
+  && savedRange.start <= savedRange.end && savedRange.end >= firstMonth && savedRange.start <= lastMonth) {
+  startMonthInput.value = String(Math.max(firstMonth, savedRange.start) - firstMonth)
+  endMonthInput.value = String(Math.min(lastMonth, savedRange.end) - firstMonth)
+} else {
+  rangePreset = 0
+}
+function savePreferences() {
+  try {
+    localStorage.setItem('coogles.preferences', JSON.stringify({
+      axisMode: document.getElementById('axis-mode').value,
+      percentageMode: document.getElementById('percentage-mode').checked,
+      compactMode: document.getElementById('compact-mode').checked,
+      hidePoints: document.getElementById('hide-points').checked,
+      hideTables: document.getElementById('hide-tables').checked,
+      enabledSeries: [...enabled],
+      dateRange: { start: firstMonth + Number(startMonthInput.value), end: firstMonth + Number(endMonthInput.value) },
+      rangePreset
+    }))
+  } catch {}
+}
+function updateDateRange(changed) {
+  let start = Number(startMonthInput.value)
+  let end = Number(endMonthInput.value)
+  if (start > end) {
+    if (changed === 'start-month') {
+      end = start
+      endMonthInput.value = String(end)
+    } else {
+      start = end
+      startMonthInput.value = String(start)
+    }
+  }
+  const startLabel = formatMonth(firstMonth + start)
+  const endLabel = formatMonth(firstMonth + end)
+  document.getElementById('start-month-label').textContent = startLabel
+  document.getElementById('end-month-label').textContent = endLabel
+  startMonthInput.setAttribute('aria-valuetext', startLabel)
+  endMonthInput.setAttribute('aria-valuetext', endLabel)
+  const selected = document.getElementById('range-selected')
+  selected.style.left = `${monthCount ? start / monthCount * 100 : 0}%`
+  selected.style.width = `${monthCount ? (end - start) / monthCount * 100 : 100}%`
+}
+updateDateRange()
+const namespace = 'http://www.w3.org/2000/svg'
+function element(tag, attributes, text) {
+  const node = document.createElementNS(namespace, tag)
+  for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value)
+  if (text !== undefined) node.textContent = text
+  return node
+}
+function renderRepository(report, index) {
+  const section = document.createElement('section')
+  section.id = `repository-${index}`
+  section.innerHTML = document.getElementById('repository-template').innerHTML
+  document.getElementById('repositories').append(section)
+  const getElement = identifier => section.querySelector(`[data-element="${identifier}"]`)
+  const parts = report.repository.split('/').filter(Boolean)
+  const dataIndex = parts.lastIndexOf('data')
+  const inferredUrl = dataIndex >= 0 && parts.length >= dataIndex + 3 ? `https://github.com/${parts[dataIndex + 1]}/${parts[dataIndex + 2]}` : null
+  const repositoryUrl = report.repository_url || inferredUrl
+  const repositoryName = repositoryUrl ? repositoryUrl.split('/').slice(-2).join('/') : (parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1])
+  const link = document.createElement('a')
+  link.textContent = repositoryName
+  link.href = `#${section.id}`
+  link.title = report.repository
+  const entry = document.createElement('li')
+  entry.append(link)
+  document.getElementById('repository-links').append(entry)
+  if (repositoryUrl) {
+    getElement('heading').textContent = repositoryName
+    getElement('heading').href = repositoryUrl
+  } else {
+    getElement('heading').textContent = repositoryName
+  }
+  const allSnapshots = [...report.snapshots].reverse()
+  let snapshots = allSnapshots
+  const svg = getElement('plot')
+  function metricValue(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key]
+    return snapshot.metrics.code_loc > 0 ? snapshot.metrics[key] / snapshot.metrics.code_loc * 100 : 0
+  }
+  function formatMetric(snapshot, key) {
+    if (!document.getElementById('percentage-mode').checked) return snapshot.metrics[key].toLocaleString()
+    return snapshot.metrics.code_loc > 0 ? `${metricValue(snapshot, key).toLocaleString(undefined, { maximumFractionDigits: 1 })}%` : 'N/A'
+  }
+  function draw() {
+    svg.replaceChildren()
+    getElement('detail').textContent = ''
+    const compact = document.getElementById('compact-mode').checked
+    section.className = compact ? 'compact' : ''
+    getElement('summary').hidden = compact
+    const graphHeight = compact ? 440 : 800
+    const plotBottom = graphHeight - 80
+    const plotHeight = plotBottom - 40
+    svg.setAttribute('viewBox', `0 0 1000 ${graphHeight}`)
+    if (snapshots.length === 0) {
+      svg.append(element('text', { x: 500, y: graphHeight / 2, 'text-anchor': 'middle' }, 'No samples in selected months'))
+      return
+    }
+    const visible = series.filter(item => enabled.has(item.key))
+    const percentageMode = document.getElementById('percentage-mode').checked
+    const hidePoints = document.getElementById('hide-points').checked
+    const values = snapshots.flatMap(snapshot => visible.map(item => metricValue(snapshot, item.key)))
+    const highest = Math.max(0, ...values)
+    const percentageStep = highest > 0 ? 10 ** Math.floor(Math.log10(highest)) / 4 : 1
+    const maximum = percentageMode ? Math.max(percentageStep, Math.ceil(highest / percentageStep) * percentageStep) : Math.max(1, highest) * 1.1
+    const percentageDigits = Math.min(6, Math.max(1, 1 - Math.floor(Math.log10(maximum))))
+    svg.setAttribute('aria-label', percentageMode ? 'Rust metrics as percentages of total code over sampled Git history' : 'Rust line counts over sampled Git history')
+    const axisMode = document.getElementById('axis-mode').value
+    const timeMode = axisMode !== 'commits'
+    const weeks = axisMode === 'time-1week' ? 1 : axisMode === 'time-4weeks' ? 4 : 2
+    const plotted = timeMode ? [...snapshots].sort((left, right) => left.timestamp - right.timestamp) : snapshots
+    const oldest = plotted[0].offset
+    const newest = plotted[plotted.length - 1].offset
+    const earliest = plotted[0].timestamp
+    const latest = plotted[plotted.length - 1].timestamp
+    const timePosition = timestamp => earliest === latest ? 530 : 80 + (timestamp - earliest) / (latest - earliest) * 860
+    const positionX = timeMode ? snapshot => timePosition(snapshot.timestamp) :
+      snapshot => oldest === newest ? 530 : 80 + (oldest - snapshot.offset) / (oldest - newest) * 860
+    const positionY = value => plotBottom - value / maximum * plotHeight
+    const gridSteps = compact ? 4 : 8
+    for (let index = 0; index <= gridSteps; index++) {
+      const value = maximum * index / gridSteps
+      const height = positionY(value)
+      svg.append(element('line', { x1: 80, x2: 940, y1: height, y2: height, class: 'grid' }))
+      svg.append(element('text', { x: 70, y: height + 4, 'text-anchor': 'end' }, percentageMode ? `${value.toLocaleString(undefined, { maximumFractionDigits: percentageDigits })}%` : Math.round(value).toLocaleString()))
+    }
+    if (timeMode) {
+      const interval = weeks * 7 * 24 * 60 * 60
+      const monday = Date.UTC(1970, 0, 5) / 1000
+      const firstTick = monday + Math.ceil((earliest - monday) / interval) * interval
+      const ticks = []
+      for (let timestamp = firstTick; timestamp <= latest; timestamp += interval) ticks.push(timestamp)
+      const labelEvery = Math.max(1, Math.ceil(ticks.length / 7))
+      ticks.forEach((timestamp, index) => {
+        const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
+        const grid = element('line', { x1: timePosition(timestamp), x2: timePosition(timestamp), y1: 40, y2: plotBottom, class: 'grid', 'stroke-opacity': 0.4 })
+        grid.append(element('title', {}, date))
+        svg.append(grid)
+        if (ticks.length >= 2 && index % labelEvery === 0) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, date))
+        }
+      })
+      if (ticks.length < 2) {
+        for (const timestamp of new Set([earliest, latest])) {
+          svg.append(element('text', { x: timePosition(timestamp), y: plotBottom + 29, 'text-anchor': 'middle' }, new Date(timestamp * 1000).toISOString().slice(0, 10)))
+        }
+      }
+    } else {
+      const labelEvery = Math.max(1, Math.ceil(plotted.length / 10))
+      plotted.forEach((snapshot, index) => {
+        if (index % labelEvery === 0 || index === plotted.length - 1) {
+          svg.append(element('text', { x: positionX(snapshot), y: plotBottom + 29, 'text-anchor': 'middle' }, `~${snapshot.offset}`))
+        }
+      })
+    }
+    const axisTitle = timeMode ? `Commit date (UTC) · every ${weeks === 1 ? 'week' : `${weeks} weeks`}` : 'First-parent commit offset from HEAD · oldest to newest'
+    svg.append(element('text', { x: 510, y: graphHeight - 18, 'text-anchor': 'middle' }, axisTitle))
+    for (const item of visible) {
+      const points = plotted.map(snapshot => `${positionX(snapshot)},${positionY(metricValue(snapshot, item.key))}`).join(' ')
+      svg.append(element('polyline', { points, fill: 'none', stroke: item.color, 'stroke-width': 2.5 }))
+      for (const snapshot of plotted) {
+        const date = new Date(snapshot.timestamp * 1000).toISOString().slice(0, 10)
+        const value = `${item.name}: ${formatMetric(snapshot, item.key)} · ${date}`
+        const circle = element('circle', { cx: positionX(snapshot), cy: positionY(metricValue(snapshot, item.key)), r: 5, fill: hidePoints ? 'transparent' : item.color, tabindex: 0, 'aria-label': value })
+        circle.append(element('title', {}, value))
+        const show = () => { getElement('detail').textContent = value }
+        const clear = () => { getElement('detail').textContent = '' }
+        circle.addEventListener('mouseenter', show)
+        circle.addEventListener('mouseleave', clear)
+        circle.addEventListener('focus', show)
+        circle.addEventListener('blur', clear)
+        svg.append(circle)
+      }
+    }
+  }
+  const failures = snapshots.reduce((total, snapshot) => total + snapshot.parse_errors.length, 0)
+  const manifestFailures = snapshots.reduce((total, snapshot) => total + (snapshot.manifest_errors || []).length, 0)
+  const warnings = []
+  if (report.configuration.history_truncated) warnings.push(`Requested ${report.configuration.requested_commits} commits, but only ${report.configuration.commits} first-parent edges are available. Sampled the available history.`)
+  if (report.configuration.shallow_boundary) warnings.push('Reached a shallow clone boundary. Deepen the clone to include older history.')
+  if (failures) warnings.push(`${failures} file/snapshot parse failures. Inline test counts may be incomplete. Details are in the JSON.`)
+  if (manifestFailures) warnings.push(`${manifestFailures} file/snapshot manifest parse failures. Custom target paths may be incomplete. Details are in the JSON.`)
+  getElement('warning').textContent = warnings.join(' ')
+  function drawTable() {
+    const rows = getElement('rows')
+    rows.replaceChildren()
+    for (const snapshot of snapshots) {
+      const row = document.createElement('tr')
+      for (const value of [`${snapshot.commit.slice(0, 10)} · ~${snapshot.offset}`, ...series.map(item => formatMetric(snapshot, item.key))]) {
+        const cell = document.createElement('td')
+        cell.textContent = value
+        row.append(cell)
+      }
+      rows.append(row)
+    }
+  }
+  function refresh() {
+    const start = firstMonth + Number(startMonthInput.value)
+    const end = firstMonth + Number(endMonthInput.value)
+    snapshots = allSnapshots.filter(snapshot => {
+      const month = timestampMonth(snapshot.timestamp)
+      return month >= start && month <= end
+    })
+    getElement('summary').textContent = `${snapshots.length} stops · ${report.unique_rust_blobs.toLocaleString()} unique Rust file versions · ${report.elapsed_seconds.toFixed(2)}s`
+    draw()
+    drawTable()
+    getElement('table').hidden = document.getElementById('hide-tables').checked
+  }
+  refresh()
+  return { refresh, table: getElement('table') }
+}
+const charts = reports.map(renderRepository)
+const refreshPlots = () => charts.forEach(chart => chart.refresh())
+for (const item of series) {
+  const label = document.createElement('label')
+  label.style.color = item.color
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.checked = enabled.has(item.key)
+  checkbox.addEventListener('change', () => {
+    if (checkbox.checked) enabled.add(item.key)
+    else enabled.delete(item.key)
+    savePreferences()
+    refreshPlots()
+  })
+  label.append(checkbox, document.createTextNode(item.name))
+  document.getElementById('controls').append(label)
+}
+for (const identifier of ['percentage-mode', 'axis-mode', 'compact-mode', 'hide-points']) {
+  document.getElementById(identifier).addEventListener('change', () => {
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const identifier of ['start-month', 'end-month']) {
+  document.getElementById(identifier).addEventListener('input', () => {
+    rangePreset = null
+    updateDateRange(identifier)
+    savePreferences()
+    refreshPlots()
+  })
+}
+for (const [label, months] of [['Last 2 months', 2], ['Last 6 months', 6], ['Last 12 months', 12], ['Last 2 years', 24], ['All time', 0]]) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.textContent = label
+  button.addEventListener('click', () => {
+    rangePreset = months
+    startMonthInput.value = String(months ? Math.max(0, monthCount - months + 1) : 0)
+    endMonthInput.value = String(monthCount)
+    updateDateRange()
+    savePreferences()
+    refreshPlots()
+  })
+  document.getElementById('date-presets').append(button)
+}
+document.getElementById('hide-tables').addEventListener('change', () => {
+  const hidden = document.getElementById('hide-tables').checked
+  savePreferences()
+  charts.forEach(chart => { chart.table.hidden = hidden })
+})
+document.getElementById('download').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(reportDocument, null, 2)], { type: 'application/json' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'report.json'
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+})
+</script>
+</html>
