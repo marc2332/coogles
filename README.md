@@ -1,6 +1,6 @@
 # Coogles
 
-A Rust CLI that measures Rust source across Git history and writes JSON plus a self-contained HTML plot. No checkout, external Git process, network access or web server is needed during analysis.
+Track Rust LOC across Git history with JSON output and a self-contained HTML dashboard.
 
 ## Install
 
@@ -8,93 +8,28 @@ A Rust CLI that measures Rust source across Git history and writes JSON plus a s
 cargo install --git https://github.com/marc2332/coogles --locked
 ```
 
-Then run:
+## Usage
+
+Scan all available first-parent history with 50 samples, including HEAD and the oldest commit:
 
 ```sh
-coogles /path/to/repository --all --stops 25
+coogles /path/to/repo --all --stops 50
 ```
 
-## Run
+Compare multiple repositories:
 
 ```sh
-cargo run --release -- /path/to/repository \
-  --commits 300 --step 10 \
-  --output reports/history.json --html reports/history.html
+coogles /path/to/freya /path/to/coogles /path/to/servo --all --stops 50
 ```
 
-This samples `HEAD`, `HEAD~10`, `HEAD~20`, through `HEAD~300`, giving 31 stops. HEAD and the final requested offset are always included, even when the depth is not divisible by the step.
-
-To specify the exact number of stops instead:
+Or sample every 10 commits over the last 300:
 
 ```sh
-cargo run --release -- /home/marc/Projects/freya/trunk \
-  --commits 100 --stops 10 \
-  --output reports/freya.json --html reports/freya.html
+coogles /path/to/repo --commits 300 --step 10
 ```
 
-To scan the entire available first-parent history:
+By default, output is written to `report.json` and `report.html`. Open the HTML directly in your browser, no server required.
 
-```sh
-cargo run --release -- /path/to/repository --all --stops 30
-```
+Use `--output` and `--html` to choose output paths, and `--threads` to limit workers.
 
-To include multiple repositories in one report:
-
-```sh
-coogles /path/to/freya /path/to/dioxus --all --stops 25
-```
-
-All paths share the sampling options. Each repository gets its own graph and table, with a clickable list at the top to jump to its section. The X axis, percentage mode, compact mode and line checkboxes are global and update all plots. Controls sit in a fixed left sidebar on desktop and above the plots on smaller screens. Compact mode roughly halves graph height while keeping labels readable. Hide commit tables toggles all tables together. Hide points makes circle markers invisible while preserving hover values. All view settings are saved in browser storage. Manual month ranges are clamped to the available dates when reopening a report, while saved presets follow the latest report month. Single-repository JSON keeps the original schema. Multiple-repository JSON uses schema version 2 with a `repositories` array of individual reports.
-
-`--all` replaces `--commits`, not the traversal mode. It does not include side-branch commits separately. Use `--all --step 10` to sample every ten commits instead.
-
-Stops are evenly distributed using integer commit offsets, including HEAD and the requested depth or available history boundary. For example, `--all --stops 25` includes the latest and oldest commits with 23 samples between them. A single requested stop samples HEAD only. `--stops` and `--step` are mutually exclusive. `--threads N` limits Rayon workers.
-
-Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, point-value tooltips, a data table and a JSON download button. Use the X axis selector to switch between commit distance and time. Time mode sorts samples by committer timestamp and spaces them by elapsed time, with UTC gridlines every one, two or four weeks, selected in the dropdown. Date labels are thinned for long histories to avoid overlap. This repositions the existing sampled snapshots, it does not collect new time-based samples. Hover or focus a point to see its metric label, value and UTC commit date. The two-handle date-range slider filters all plots and tables to inclusive start/end UTC calendar months. Repositories without sampled commits in that range show an empty-state message. Horizontal preset buttons select the last 2, 6 or 12 calendar months, the last 2 years, or all time, anchored to the latest month in the report.
-
-Enable Percentage mode to divide each metric by that snapshot's total code LOC. Total code becomes 100%, and the plot, tooltips and table show relative values. Raw counts remain available in the JSON. Hiding total code does not change the denominator. Categories overlap and do not sum to 100%. Comments and docs can exceed 100% because they are excluded from code LOC. Snapshots with no code show N/A rather than dividing by zero.
-
-History follows the first parent at merges. GitHub's total commit count includes merged branches, so it can exceed this history length. If the requested depth exceeds available history, the CLI warns and redistributes stops over the available history. The JSON records requested and actual depths and whether history was truncated. A shallow boundary is detected and reported separately. If there are fewer available offsets than requested stops, the stop count is reduced. A repository with only HEAD produces one stop at offset zero. Bare repositories are supported. Dirty working-tree changes are not included or modified.
-
-## Counting rules
-
-See the [counting audit](docs/counting-audit.md) for reproduced bugs, fixes and remaining accuracy limits. Source/test/example counts are classification estimates, not compiler-proven production LOC.
-
-All tracked regular `.rs` files in each snapshot are included, including vendored and generated source if committed. Submodules and symbolic links are not followed.
-
-- `code_loc`: total physical nonblank lines containing Rust tokens other than comments, including tests and examples. Attributes and brace-only lines count. A line containing both code and a trailing comment counts in both categories.
-- `source_code_loc`: total code excluding classified test files, example files and inline test-only regions. Overlapping test/example code is excluded only once.
-- `test_code_loc`: code in paths with a `tests/` component, configured Cargo test targets, `#[cfg(test)]` items and test functions. Recognizes attributes whose final segment is `test` or `rstest`, including `#[tokio::test]`. Test-only methods, associated items, fields and statement/expression regions are included. Test-only external modules and their descendants are included.
-- `example_code_loc`: code in paths with an `examples/` component or configured Cargo example targets and their external module descendants.
-- `comment_loc`: ordinary `//` comment lines, excluding documentation. `////` is an ordinary comment. Trailing comments count.
-- `doc_loc`: `inner_doc_loc` (`//!`) plus `outer_doc_loc` (`///`). Rustdoc fenced code remains documentation, not example or test code.
-- `block_comment_loc` and `block_doc_loc`: separate counts for block comments and block documentation, neither included in the line-comment metrics.
-
-Categories can overlap and should not be summed as a partition of the repository. File-based tests/examples include helper code, not just test function bodies.
-
-Historical `Cargo.toml` files are read to locate explicit `[[test]]` and `[[example]]` paths. This does not execute Cargo or build old code.
-
-This is source analysis, not compiler-expanded analysis. Macros are not expanded. Arbitrary custom test attributes, `cfg_attr`, feature-only test configurations, conditional module paths, `include!` and unusual inline-module `#[path]` layouts are not fully resolved. Simple test predicates and `all`/`any` combinations that require `test` are recognized. Source shared between production and test module graphs may be classified as test code.
-
-Parser failures retain lexical counts but may omit inline tests and module relationships. Each snapshot lists `parse_errors`, and both the CLI and HTML show a warning. Malformed Cargo manifests are recorded in each snapshot's `manifest_errors` and do not abort analysis. Custom test/example targets from those manifests may be missing, while lexical counts and path-based classification continue. Non-UTF-8 Rust source or paths and unsupported target paths produce explicit errors.
-
-## Performance
-
-- `gix` reads commit, tree and blob objects directly, with networking and worktree features disabled.
-- Blob object IDs deduplicate unchanged file versions across snapshots.
-- `rayon` analyzes unique blobs in batches of 256 with local repository handles.
-- `ra-ap-rustc_lexer` distinguishes comments from literals, including raw strings and nested block comments.
-- `syn` identifies inline test source ranges and external module relationships.
-- Content analysis is cached separately from snapshot-specific path classification.
-
-The cache lasts for one invocation. Snapshots still traverse their trees, and parsed metric summaries remain in memory. The recorded analysis time excludes output serialization and writing. Unicode identifier tables are pinned to match the lexer's Unicode version.
-
-## Development
-
-```sh
-cargo check
-cargo test --bin coogles
-node --test tests/viewer.cjs
-```
-
-`reports/` is ignored so repository-specific generated output is not accidentally committed.
+The dashboard includes global line toggles, percentages, compact mode, time axes and a month-range slider. View settings persist across reloads.
