@@ -67,7 +67,7 @@ button { background: #27354b; color: #e8edf5; border: 0; border-radius: 6px; pad
 </aside>
 <main id="repositories"></main>
 <template id="repository-template">
-<h2 data-element="heading"></h2>
+<h2><a data-element="heading"></a></h2>
 <p data-element="summary"></p>
 <svg data-element="plot" viewBox="0 0 1000 800" role="img" aria-label="Rust line counts over sampled Git history"></svg>
 <p class="detail" data-element="detail" aria-live="polite"></p>
@@ -186,15 +186,24 @@ function renderRepository(report, index) {
   section.innerHTML = document.getElementById('repository-template').innerHTML
   document.getElementById('repositories').append(section)
   const getElement = identifier => section.querySelector(`[data-element="${identifier}"]`)
-  const link = document.createElement('a')
   const parts = report.repository.split('/').filter(Boolean)
-  link.textContent = parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1]
+  const dataIndex = parts.lastIndexOf('data')
+  const inferredUrl = dataIndex >= 0 && parts.length >= dataIndex + 3 ? `https://github.com/${parts[dataIndex + 1]}/${parts[dataIndex + 2]}` : null
+  const repositoryUrl = report.repository_url || inferredUrl
+  const repositoryName = repositoryUrl ? repositoryUrl.split('/').slice(-2).join('/') : (parts[parts.length - 1] === 'trunk' ? parts[parts.length - 2] : parts[parts.length - 1])
+  const link = document.createElement('a')
+  link.textContent = repositoryName
   link.href = `#${section.id}`
   link.title = report.repository
   const entry = document.createElement('li')
   entry.append(link)
   document.getElementById('repository-links').append(entry)
-  getElement('heading').textContent = report.repository
+  if (repositoryUrl) {
+    getElement('heading').textContent = repositoryName
+    getElement('heading').href = repositoryUrl
+  } else {
+    getElement('heading').textContent = repositoryName
+  }
   const allSnapshots = [...report.snapshots].reverse()
   let snapshots = allSnapshots
   const svg = getElement('plot')

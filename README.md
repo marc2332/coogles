@@ -58,3 +58,14 @@ After cloning finishes:
 Always uses `--all` and writes `report.html` and `report.json` for each repository under `reports/REPO` or `reports/OWNER/REPO`, matching the layout in `data/`.
 
 The script builds Coogles once in release mode. Use `--binary coogles` to use an installed binary instead. Workers are concurrent repositories, with one Rust thread per worker by default. Use `--threads N` to change that.
+
+## Prepare GitHub Pages
+
+```sh
+./generate-index.sh
+./prepare-github-pages.sh
+```
+
+This creates or reuses the local `.gh-pages` worktree and copies only HTML files while preserving `OWNER/REPO/report.html` paths. It adds `.nojekyll`, removes stale deployed reports and verifies index links. Repository report titles link to their GitHub origins.
+
+The script does not commit or push. Review `.gh-pages`, then commit and push the `gh-pages` branch manually. Configure GitHub Pages to deploy from the branch root.

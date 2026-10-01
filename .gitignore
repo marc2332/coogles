@@ -1,5 +1,6 @@
 /target/
 /data/
+/.gh-pages/
 /reports/
 /report.html
 /report.json

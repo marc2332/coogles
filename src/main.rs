@@ -62,6 +62,7 @@ struct Configuration {
 struct Report {
     schema_version: u32,
     repository: String,
+    repository_url: Option<String>,
     head: String,
     configuration: Configuration,
     definitions: &'static str,
@@ -450,6 +451,33 @@ fn aggregate(
     })
 }
 
+fn github_repository_url(repository: &gix::Repository) -> Option<String> {
+    let remote = repository.find_remote("origin").ok()?;
+    let url = remote.url(gix::remote::Direction::Fetch)?;
+    if url.host.as_deref()? != "github.com" {
+        return None;
+    }
+    let path = String::from_utf8(url.path.to_vec()).ok()?;
+    let path = path
+        .trim_start_matches('/')
+        .strip_suffix(".git")
+        .unwrap_or(path.trim_start_matches('/'));
+    let mut components = path.split('/');
+    let owner = components.next()?;
+    let name = components.next()?;
+    if components.next().is_some()
+        || ![owner, name].iter().all(|component| {
+            !component.is_empty()
+                && component.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+                })
+        })
+    {
+        return None;
+    }
+    Some(format!("https://github.com/{owner}/{name}"))
+}
+
 fn write_output(path: &Path, contents: &[u8]) -> Result<()> {
     if let Some(parent) = path
         .parent()
@@ -507,6 +535,7 @@ fn main() -> Result<()> {
 fn analyze_repository(path: &Path, arguments: &Arguments) -> Result<Report> {
     let started = Instant::now();
     let repository = gix::discover(path).context("opening Git repository")?;
+    let repository_url = github_repository_url(&repository);
     let head = repository.head_commit()?.id;
     let requested_commits = (!arguments.all).then_some(arguments.commits);
     let (history, shallow_boundary) = collect_history(&repository, head, requested_commits)?;
@@ -589,6 +618,7 @@ fn analyze_repository(path: &Path, arguments: &Arguments) -> Result<Report> {
     let report = Report {
         schema_version: 1,
         repository: path.canonicalize()?.display().to_string(),
+        repository_url,
         head: head.to_string(),
         configuration: Configuration {
             commits,
@@ -642,7 +672,7 @@ fn analyze_repository(path: &Path, arguments: &Arguments) -> Result<Report> {
 mod tests {
     use crate::{
         Arguments, FileEntry, Stop, aggregate, analysis::analyze, analyze_manifest, crate_roots,
-        history_offsets, module_base, normalize, offsets,
+        github_repository_url, history_offsets, module_base, normalize, offsets,
     };
     use clap::Parser;
     use std::{collections::HashMap, path::Path};
@@ -839,6 +869,33 @@ mod tests {
         assert!(snapshot.manifest_errors[0].starts_with("Cargo.toml:"));
         assert!(snapshot.parse_errors.is_empty());
         assert!(analyze_manifest(&[0xff]).error.is_some());
+    }
+
+    #[test]
+    fn extracts_safe_github_origin_urls() {
+        let directory = tempfile::tempdir().unwrap();
+        let repository = gix::init_bare(directory.path()).unwrap();
+        for (origin, expected) in [
+            (
+                "https://github.com/owner/repository.git",
+                Some("https://github.com/owner/repository"),
+            ),
+            (
+                "git@github.com:owner/repository.git",
+                Some("https://github.com/owner/repository"),
+            ),
+            (
+                "ssh://git@github.com/owner/repository.git",
+                Some("https://github.com/owner/repository"),
+            ),
+            ("https://example.com/owner/repository.git", None),
+            ("https://github.com/owner/repository/extra.git", None),
+        ] {
+            std::fs::write(directory.path().join("config"), format!("[core]\n\tbare = true\n[remote \"origin\"]\n\turl = {origin}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n")).unwrap();
+            let repository = gix::open(directory.path()).unwrap();
+            assert_eq!(github_repository_url(&repository).as_deref(), expected);
+        }
+        drop(repository);
     }
 
     #[test]

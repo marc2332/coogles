@@ -318,7 +318,7 @@ test('multiple repositories have navigation anchors and shared plot controls', (
   assert.deepEqual(links.map(link => link.href), ['#repository-0', '#repository-1'])
   assert.deepEqual(links.map(link => link.textContent), ['first', 'second'])
   assert.deepEqual(elements.sections.map(section => section.id), ['repository-0', 'repository-1'])
-  assert.equal(elements.sections[1].elements.heading.textContent, '/fixture/second')
+  assert.equal(elements.sections[1].elements.heading.textContent, 'second')
   assert.equal(elements.controls.children.length, 6)
   percentageMode(elements, true)
   for (const section of elements.sections) {
@@ -343,6 +343,19 @@ test('multiple repositories have navigation anchors and shared plot controls', (
     elements['hide-tables'].checked = hidden
     elements['hide-tables'].listeners.change()
     for (const section of elements.sections) assert.equal(section.elements.table.hidden, hidden)
+  }
+})
+
+test('repository titles link to explicit or inferred GitHub origins', () => {
+  const explicit = { ...fixture([monday]), repository: '/tmp/checkout', repository_url: 'https://github.com/owner/explicit' }
+  const inferred = { ...fixture([monday]), repository: '/workspace/data/owner/inferred' }
+  const elements = loadViewer({ schema_version: 2, repositories: [explicit, inferred] })
+  for (const [index, name, url] of [
+    [0, 'owner/explicit', 'https://github.com/owner/explicit'],
+    [1, 'owner/inferred', 'https://github.com/owner/inferred']
+  ]) {
+    assert.equal(elements.sections[index].elements.heading.textContent, name)
+    assert.equal(elements.sections[index].elements.heading.href, url)
   }
 })
 
