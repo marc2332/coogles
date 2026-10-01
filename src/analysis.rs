@@ -29,9 +29,12 @@ pub fn analyze(source: &str) -> Analysis {
     let mut outer_docs = code.clone();
     let mut block_comments = code.clone();
     let mut block_docs = code.clone();
-    let mut offset = 0;
+    let mut offset = usize::from(source.starts_with('\u{feff}')) * '\u{feff}'.len_utf8();
+    offset += ra_ap_rustc_lexer::strip_shebang(&source[offset..]).unwrap_or_default();
     let mut line = 0;
-    for token in ra_ap_rustc_lexer::tokenize(source, ra_ap_rustc_lexer::FrontmatterAllowed::No) {
+    for token in
+        ra_ap_rustc_lexer::tokenize(&source[offset..], ra_ap_rustc_lexer::FrontmatterAllowed::No)
+    {
         let end = offset + token.len as usize;
         let text = &source[offset..end];
         let last_line = line + text.bytes().filter(|byte| *byte == b'\n').count();
@@ -94,7 +97,14 @@ pub fn analyze(source: &str) -> Analysis {
                 .count() as u64;
             analysis.external_modules = visitor.external_modules;
         }
-        Err(error) => analysis.parse_error = Some(error.to_string()),
+        Err(error) => {
+            let location = error.span().start();
+            analysis.parse_error = Some(format!(
+                "{error} at {}:{}",
+                location.line,
+                location.column + 1
+            ));
+        }
     }
     analysis
 }
@@ -150,6 +160,51 @@ fn item_attributes(item: &Item) -> &[Attribute] {
     }
 }
 
+fn expression_attributes(expression: &syn::Expr) -> &[Attribute] {
+    match expression {
+        syn::Expr::Array(expression) => &expression.attrs,
+        syn::Expr::Assign(expression) => &expression.attrs,
+        syn::Expr::Async(expression) => &expression.attrs,
+        syn::Expr::Await(expression) => &expression.attrs,
+        syn::Expr::Binary(expression) => &expression.attrs,
+        syn::Expr::Block(expression) => &expression.attrs,
+        syn::Expr::Break(expression) => &expression.attrs,
+        syn::Expr::Call(expression) => &expression.attrs,
+        syn::Expr::Cast(expression) => &expression.attrs,
+        syn::Expr::Closure(expression) => &expression.attrs,
+        syn::Expr::Const(expression) => &expression.attrs,
+        syn::Expr::Continue(expression) => &expression.attrs,
+        syn::Expr::Field(expression) => &expression.attrs,
+        syn::Expr::ForLoop(expression) => &expression.attrs,
+        syn::Expr::Group(expression) => &expression.attrs,
+        syn::Expr::If(expression) => &expression.attrs,
+        syn::Expr::Index(expression) => &expression.attrs,
+        syn::Expr::Infer(expression) => &expression.attrs,
+        syn::Expr::Let(expression) => &expression.attrs,
+        syn::Expr::Lit(expression) => &expression.attrs,
+        syn::Expr::Loop(expression) => &expression.attrs,
+        syn::Expr::Macro(expression) => &expression.attrs,
+        syn::Expr::Match(expression) => &expression.attrs,
+        syn::Expr::MethodCall(expression) => &expression.attrs,
+        syn::Expr::Paren(expression) => &expression.attrs,
+        syn::Expr::Path(expression) => &expression.attrs,
+        syn::Expr::Range(expression) => &expression.attrs,
+        syn::Expr::RawAddr(expression) => &expression.attrs,
+        syn::Expr::Reference(expression) => &expression.attrs,
+        syn::Expr::Repeat(expression) => &expression.attrs,
+        syn::Expr::Return(expression) => &expression.attrs,
+        syn::Expr::Struct(expression) => &expression.attrs,
+        syn::Expr::Try(expression) => &expression.attrs,
+        syn::Expr::TryBlock(expression) => &expression.attrs,
+        syn::Expr::Tuple(expression) => &expression.attrs,
+        syn::Expr::Unary(expression) => &expression.attrs,
+        syn::Expr::Unsafe(expression) => &expression.attrs,
+        syn::Expr::While(expression) => &expression.attrs,
+        syn::Expr::Yield(expression) => &expression.attrs,
+        _ => &[],
+    }
+}
+
 struct TestVisitor {
     test_lines: Vec<bool>,
     module_path: Vec<String>,
@@ -158,6 +213,15 @@ struct TestVisitor {
 }
 
 impl TestVisitor {
+    fn enter_region(&mut self, attributes: &[Attribute], span: Span) -> bool {
+        let previous = self.test_context;
+        self.test_context |= test_only(attributes);
+        if self.test_context && !previous {
+            self.mark(span);
+        }
+        previous
+    }
+
     fn mark(&mut self, span: Span) {
         let start = span.start().line.saturating_sub(1);
         let end = span.end().line.min(self.test_lines.len());
@@ -169,26 +233,129 @@ impl TestVisitor {
 
 impl<'ast> Visit<'ast> for TestVisitor {
     fn visit_item(&mut self, item: &'ast Item) {
-        let previous = self.test_context;
-        self.test_context |= test_only(item_attributes(item));
-        if self.test_context {
-            self.mark(item.span());
-        }
+        let previous = self.enter_region(item_attributes(item), item.span());
         syn::visit::visit_item(self, item);
         self.test_context = previous;
     }
 
     fn visit_item_fn(&mut self, function: &'ast syn::ItemFn) {
-        if function.attrs.iter().any(|attribute| {
+        let previous = self.test_context;
+        self.test_context |= function.attrs.iter().any(|attribute| {
             attribute
                 .path()
                 .segments
                 .last()
                 .is_some_and(|segment| segment.ident == "test" || segment.ident == "rstest")
-        }) {
+        });
+        if self.test_context && !previous {
             self.mark(function.span());
         }
         syn::visit::visit_item_fn(self, function);
+        self.test_context = previous;
+    }
+
+    fn visit_impl_item(&mut self, item: &'ast syn::ImplItem) {
+        let attributes = match item {
+            syn::ImplItem::Const(item) => &item.attrs,
+            syn::ImplItem::Fn(item) => &item.attrs,
+            syn::ImplItem::Type(item) => &item.attrs,
+            syn::ImplItem::Macro(item) => &item.attrs,
+            _ => return syn::visit::visit_impl_item(self, item),
+        };
+        let previous = self.enter_region(attributes, item.span());
+        syn::visit::visit_impl_item(self, item);
+        self.test_context = previous;
+    }
+
+    fn visit_trait_item(&mut self, item: &'ast syn::TraitItem) {
+        let attributes = match item {
+            syn::TraitItem::Const(item) => &item.attrs,
+            syn::TraitItem::Fn(item) => &item.attrs,
+            syn::TraitItem::Type(item) => &item.attrs,
+            syn::TraitItem::Macro(item) => &item.attrs,
+            _ => return syn::visit::visit_trait_item(self, item),
+        };
+        let previous = self.enter_region(attributes, item.span());
+        syn::visit::visit_trait_item(self, item);
+        self.test_context = previous;
+    }
+
+    fn visit_foreign_item(&mut self, item: &'ast syn::ForeignItem) {
+        let attributes = match item {
+            syn::ForeignItem::Fn(item) => &item.attrs,
+            syn::ForeignItem::Static(item) => &item.attrs,
+            syn::ForeignItem::Type(item) => &item.attrs,
+            syn::ForeignItem::Macro(item) => &item.attrs,
+            _ => return syn::visit::visit_foreign_item(self, item),
+        };
+        let previous = self.enter_region(attributes, item.span());
+        syn::visit::visit_foreign_item(self, item);
+        self.test_context = previous;
+    }
+
+    fn visit_field(&mut self, field: &'ast syn::Field) {
+        let previous = self.enter_region(&field.attrs, field.span());
+        syn::visit::visit_field(self, field);
+        self.test_context = previous;
+    }
+
+    fn visit_variant(&mut self, variant: &'ast syn::Variant) {
+        let previous = self.enter_region(&variant.attrs, variant.span());
+        syn::visit::visit_variant(self, variant);
+        self.test_context = previous;
+    }
+
+    fn visit_local(&mut self, local: &'ast syn::Local) {
+        let previous = self.enter_region(&local.attrs, local.span());
+        syn::visit::visit_local(self, local);
+        self.test_context = previous;
+    }
+
+    fn visit_stmt_macro(&mut self, statement: &'ast syn::StmtMacro) {
+        let previous = self.enter_region(&statement.attrs, statement.span());
+        syn::visit::visit_stmt_macro(self, statement);
+        self.test_context = previous;
+    }
+
+    fn visit_pat_type(&mut self, pattern: &'ast syn::PatType) {
+        let previous = self.enter_region(&pattern.attrs, pattern.span());
+        syn::visit::visit_pat_type(self, pattern);
+        self.test_context = previous;
+    }
+
+    fn visit_receiver(&mut self, receiver: &'ast syn::Receiver) {
+        let previous = self.enter_region(&receiver.attrs, receiver.span());
+        syn::visit::visit_receiver(self, receiver);
+        self.test_context = previous;
+    }
+
+    fn visit_generic_param(&mut self, parameter: &'ast syn::GenericParam) {
+        let attributes = match parameter {
+            syn::GenericParam::Lifetime(parameter) => &parameter.attrs,
+            syn::GenericParam::Type(parameter) => &parameter.attrs,
+            syn::GenericParam::Const(parameter) => &parameter.attrs,
+        };
+        let previous = self.enter_region(attributes, parameter.span());
+        syn::visit::visit_generic_param(self, parameter);
+        self.test_context = previous;
+    }
+
+    fn visit_expr(&mut self, expression: &'ast syn::Expr) {
+        let previous = self.enter_region(expression_attributes(expression), expression.span());
+        syn::visit::visit_expr(self, expression);
+        self.test_context = previous;
+    }
+
+    fn visit_arm(&mut self, arm: &'ast syn::Arm) {
+        let previous = self.enter_region(&arm.attrs, arm.span());
+        syn::visit::visit_arm(self, arm);
+        self.test_context = previous;
+    }
+
+    fn visit_field_value(&mut self, field: &'ast syn::FieldValue) {
+        let previous = self.enter_region(&field.attrs, field.span());
+        syn::visit::visit_field_value(self, field);
+        self.test_context = previous;
     }
 
     fn visit_item_mod(&mut self, module: &'ast syn::ItemMod) {
@@ -268,6 +435,70 @@ mod tests {
             ["checks/helpers.rs", "checks/helpers/mod.rs"]
         );
         assert!(result.parse_error.is_none());
+    }
+
+    #[test]
+    fn counts_multiline_literals_nested_comments_and_crlf() {
+        let source = "//! module docs\n/// function docs\n//// ordinary\nfn main() {\n let text = r##\"// literal\n/// literal\n\n/* literal */\"##;\n let url = \"https://example.com\"; // trailing\n /* block\n * nested /* comment */\n\n */ let value = 1;\n /** doc block\n * docs */\n println!(\"{text}\");\n}\n// final";
+        for source in [source.to_owned(), source.replace('\n', "\r\n")] {
+            let result = analyze(&source);
+            assert_eq!(result.code_loc, 8);
+            assert_eq!(result.comment_loc, 3);
+            assert_eq!(result.inner_doc_loc, 1);
+            assert_eq!(result.outer_doc_loc, 1);
+            assert_eq!(result.block_comment_loc, 3);
+            assert_eq!(result.block_doc_loc, 2);
+            assert!(result.parse_error.is_none());
+        }
+    }
+
+    #[test]
+    fn excludes_shebang_and_bom_from_code() {
+        for source in [
+            "#!/usr/bin/env rust-script\n//! docs\nfn main() {}\n",
+            "\u{feff}//! docs\nfn main() {}\n",
+        ] {
+            let result = analyze(source);
+            assert_eq!(result.code_loc, 1);
+            assert_eq!(result.inner_doc_loc, 1);
+            assert!(result.parse_error.is_none());
+        }
+    }
+
+    #[test]
+    fn detects_test_only_methods_fields_statements_and_associated_items() {
+        for source in [
+            "struct Thing;\nimpl Thing {\n #[cfg(test)]\n fn helper() {}\n fn normal() {}\n}\n",
+            "trait Thing {\n #[cfg(test)]\n const TEST_VALUE: usize;\n}\n",
+            "impl Thing {\n #[cfg(test)]\n const TEST_VALUE: usize = 1;\n}\n",
+            "unsafe extern \"C\" {\n #[cfg(test)]\n fn helper();\n fn normal();\n}\n",
+            "fn main() {\n match thing {\n #[cfg(test)]\n Helper => 1,\n Normal => 2,\n }\n}\n",
+            "fn main() {\n let thing = Thing {\n #[cfg(test)]\n helper: 1,\n normal: 2,\n };\n}\n",
+            "struct Thing {\n #[cfg(test)]\n helper: usize,\n normal: usize,\n}\n",
+            "enum Thing {\n #[cfg(test)]\n Helper,\n Normal,\n}\n",
+            "fn main() {\n #[cfg(test)]\n let helper = 1;\n let normal = 2;\n}\n",
+            "fn main() {\n #[cfg(test)]\n helper!();\n normal();\n}\n",
+            "fn helper(\n #[cfg(test)]\n value: usize,\n normal: usize,\n) {}\n",
+            "fn helper<\n #[cfg(test)]\n T,\n>(value: usize) {}\n",
+            "impl Thing {\n fn helper(\n #[cfg(test)]\n &self,\n ) {}\n}\n",
+        ] {
+            let result = analyze(source);
+            assert!(result.parse_error.is_none());
+            assert_eq!(result.inline_test_loc, 2, "{source}");
+        }
+        let result = analyze("fn main() {\n #[cfg(test)]\n {\n  check();\n }\n normal();\n}\n");
+        assert_eq!(result.inline_test_loc, 4);
+    }
+
+    #[test]
+    fn external_modules_inside_test_functions_inherit_test_context() {
+        let result = analyze("#[test]\nfn check() {\n mod helpers;\n}\n");
+        assert!(
+            result
+                .external_modules
+                .iter()
+                .all(|module| module.test_only)
+        );
     }
 
     #[test]

@@ -58,11 +58,13 @@ History follows the first parent at merges. GitHub's total commit count includes
 
 ## Counting rules
 
+See the [counting audit](docs/counting-audit.md) for reproduced bugs, fixes and remaining accuracy limits. Source/test/example counts are classification estimates, not compiler-proven production LOC.
+
 All tracked regular `.rs` files in each snapshot are included, including vendored and generated source if committed. Submodules and symbolic links are not followed.
 
 - `code_loc`: total physical nonblank lines containing Rust tokens other than comments, including tests and examples. Attributes and brace-only lines count. A line containing both code and a trailing comment counts in both categories.
-- `source_code_loc`: total code excluding test files, example files and inline test code inside production files. Overlapping test/example code is excluded only once.
-- `test_code_loc`: code in paths with a `tests/` component, configured Cargo test targets, `#[cfg(test)]` items and test functions. Recognizes attributes whose final segment is `test` or `rstest`, including `#[tokio::test]`. Test-only external modules and their descendants are included.
+- `source_code_loc`: total code excluding classified test files, example files and inline test-only regions. Overlapping test/example code is excluded only once.
+- `test_code_loc`: code in paths with a `tests/` component, configured Cargo test targets, `#[cfg(test)]` items and test functions. Recognizes attributes whose final segment is `test` or `rstest`, including `#[tokio::test]`. Test-only methods, associated items, fields and statement/expression regions are included. Test-only external modules and their descendants are included.
 - `example_code_loc`: code in paths with an `examples/` component or configured Cargo example targets and their external module descendants.
 - `comment_loc`: ordinary `//` comment lines, excluding documentation. `////` is an ordinary comment. Trailing comments count.
 - `doc_loc`: `inner_doc_loc` (`//!`) plus `outer_doc_loc` (`///`). Rustdoc fenced code remains documentation, not example or test code.

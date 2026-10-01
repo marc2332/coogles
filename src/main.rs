@@ -217,13 +217,90 @@ fn normalize(path: &Path) -> Result<String> {
     Ok(components.join("/"))
 }
 
-fn module_base(path: &str) -> PathBuf {
+fn crate_roots(
+    stop: &Stop,
+    manifests: &HashMap<gix::ObjectId, ManifestAnalysis>,
+) -> Result<HashSet<String>> {
+    let mut roots = HashSet::new();
+    let mut automatic_directories = HashSet::new();
+    for file in &stop.files {
+        if !file.path.ends_with("Cargo.toml") {
+            continue;
+        }
+        let parent = Path::new(&file.path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        let manifest = manifests
+            .get(&file.object_id)
+            .and_then(|manifest| manifest.value.as_ref());
+        let package = manifest.and_then(|manifest| manifest.get("package"));
+        if manifest.is_none() || package.is_some() {
+            let library_path = manifest
+                .and_then(|manifest| manifest.get("lib"))
+                .and_then(|library| library.get("path"))
+                .and_then(toml::Value::as_str)
+                .unwrap_or("src/lib.rs");
+            roots.insert(normalize(&parent.join(library_path))?);
+            let build = package.and_then(|package| package.get("build"));
+            if build.and_then(toml::Value::as_bool) != Some(false) {
+                roots.insert(normalize(
+                    &parent.join(build.and_then(toml::Value::as_str).unwrap_or("build.rs")),
+                )?);
+            }
+            for (kind, directory, flag) in [
+                ("bin", "src/bin", "autobins"),
+                ("test", "tests", "autotests"),
+                ("example", "examples", "autoexamples"),
+                ("bench", "benches", "autobenches"),
+            ] {
+                if package
+                    .and_then(|package| package.get(flag))
+                    .and_then(toml::Value::as_bool)
+                    != Some(false)
+                {
+                    automatic_directories.insert(normalize(&parent.join(directory))?);
+                    if kind == "bin" {
+                        roots.insert(normalize(&parent.join("src/main.rs"))?);
+                    }
+                }
+            }
+        }
+        if let Some(manifest) = manifest {
+            for kind in ["bin", "test", "example", "bench"] {
+                if let Some(entries) = manifest.get(kind).and_then(toml::Value::as_array) {
+                    for entry in entries {
+                        if let Some(path) = entry.get("path").and_then(toml::Value::as_str) {
+                            roots.insert(normalize(&parent.join(path))?);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for file in &stop.files {
+        if file.path.ends_with(".rs") {
+            let parent = Path::new(&file.path)
+                .parent()
+                .unwrap_or_else(|| Path::new(""));
+            let direct_target = automatic_directories.contains(&normalize(parent)?);
+            let directory_target = Path::new(&file.path)
+                .file_name()
+                .is_some_and(|name| name == "main.rs")
+                && parent.parent().is_some_and(|parent| {
+                    automatic_directories.contains(&parent.to_string_lossy().into_owned())
+                });
+            if direct_target || directory_target {
+                roots.insert(file.path.clone());
+            }
+        }
+    }
+    Ok(roots)
+}
+
+fn module_base(path: &str, crate_root: bool) -> PathBuf {
     let path = Path::new(path);
     let parent = path.parent().unwrap_or_else(|| Path::new(""));
-    if matches!(
-        path.file_name().and_then(|value| value.to_str()),
-        Some("lib.rs" | "main.rs" | "mod.rs")
-    ) {
+    if crate_root || path.file_name().is_some_and(|name| name == "mod.rs") {
         parent.to_owned()
     } else {
         parent.join(path.file_stem().unwrap_or_default())
@@ -273,6 +350,7 @@ fn aggregate(
     manifests: &HashMap<gix::ObjectId, ManifestAnalysis>,
 ) -> Result<Snapshot> {
     let (tests, examples) = custom_targets(stop, manifests)?;
+    let roots = crate_roots(stop, manifests)?;
     let mut test_files = target_files(&tests, &stop.files);
     let mut example_files = target_files(&examples, &stop.files);
     let paths: HashSet<_> = stop.files.iter().map(|file| file.path.as_str()).collect();
@@ -292,7 +370,7 @@ fn aggregate(
                         .unwrap_or_else(|| Path::new(""))
                         .to_owned()
                 } else {
-                    module_base(&file.path)
+                    module_base(&file.path, roots.contains(&file.path))
                 };
                 let path = normalize(&base.join(&module.path))?;
                 if paths.contains(path.as_str()) {
@@ -563,7 +641,7 @@ fn analyze_repository(path: &Path, arguments: &Arguments) -> Result<Report> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Arguments, FileEntry, Stop, aggregate, analysis::analyze, analyze_manifest,
+        Arguments, FileEntry, Stop, aggregate, analysis::analyze, analyze_manifest, crate_roots,
         history_offsets, module_base, normalize, offsets,
     };
     use clap::Parser;
@@ -641,8 +719,9 @@ mod tests {
             ("src/checks/helpers.rs", "fn shared() {}\n"),
             ("src/production.rs", "fn shared() {}\n"),
             ("demo/start.rs", "mod helpers;\nfn main() {}\n"),
-            ("demo/start/helpers.rs", "fn example_helper() {}\n"),
-            ("qa/check.rs", "fn custom_test() {}\n"),
+            ("demo/helpers.rs", "fn example_helper() {}\n"),
+            ("qa/check.rs", "mod helpers;\nfn custom_test() {}\n"),
+            ("qa/helpers.rs", "fn test_helper() {}\n"),
             ("examples/shared.rs", "#[test]\nfn example_test() {}\n"),
         ];
         let mut analyses = HashMap::new();
@@ -672,12 +751,60 @@ mod tests {
             files,
         };
         let snapshot = aggregate(&stop, &analyses, &manifests).unwrap();
-        assert_eq!(snapshot.metrics.test_code_loc, 9);
+        assert_eq!(snapshot.metrics.test_code_loc, 11);
         assert_eq!(snapshot.metrics.example_code_loc, 5);
         assert_eq!(snapshot.metrics.source_code_loc, 2);
-        assert_eq!(snapshot.metrics.code_loc, 14);
-        assert_eq!(snapshot.metrics.rust_files, 8);
+        assert_eq!(snapshot.metrics.code_loc, 16);
+        assert_eq!(snapshot.metrics.rust_files, 9);
         assert!(snapshot.parse_errors.is_empty());
+    }
+
+    #[test]
+    fn identifies_custom_and_automatic_crate_roots() {
+        let manifest_id =
+            gix::ObjectId::from_hex(b"0000000000000000000000000000000000000001").unwrap();
+        let rust_id = gix::ObjectId::from_hex(b"0000000000000000000000000000000000000002").unwrap();
+        let manifest = analyze_manifest(b"[package]\nname = 'fixture'\nversion = '0.1.0'\nautobins = false\nautoexamples = false\nbuild = 'tools/build-script.rs'\n[lib]\npath = 'src/api.rs'\n[[bin]]\nname = 'app'\npath = 'app/start.rs'\n");
+        let paths = [
+            "src/lib.rs",
+            "src/api.rs",
+            "src/bin/cli.rs",
+            "examples/demo.rs",
+            "tests/check.rs",
+            "tests/multifile/main.rs",
+            "app/start.rs",
+            "tools/build-script.rs",
+        ];
+        let mut files: Vec<_> = paths
+            .iter()
+            .map(|path| FileEntry {
+                path: (*path).to_owned(),
+                object_id: rust_id,
+            })
+            .collect();
+        files.push(FileEntry {
+            path: "Cargo.toml".to_owned(),
+            object_id: manifest_id,
+        });
+        let stop = Stop {
+            offset: 0,
+            commit: "fixture".to_owned(),
+            timestamp: 0,
+            files,
+        };
+        let roots = crate_roots(&stop, &HashMap::from([(manifest_id, manifest)])).unwrap();
+        for path in [
+            "src/api.rs",
+            "tests/check.rs",
+            "tests/multifile/main.rs",
+            "app/start.rs",
+            "tools/build-script.rs",
+        ] {
+            assert!(roots.contains(path), "{path}");
+        }
+        for path in ["src/lib.rs", "src/bin/cli.rs", "examples/demo.rs"] {
+            assert!(!roots.contains(path), "{path}");
+        }
     }
 
     #[test]
@@ -716,8 +843,10 @@ mod tests {
 
     #[test]
     fn resolves_module_and_target_paths() {
-        assert_eq!(module_base("src/lib.rs"), Path::new("src"));
-        assert_eq!(module_base("src/widget.rs"), Path::new("src/widget"));
+        assert_eq!(module_base("src/lib.rs", true), Path::new("src"));
+        assert_eq!(module_base("src/lib.rs", false), Path::new("src/lib"));
+        assert_eq!(module_base("qa/custom.rs", true), Path::new("qa"));
+        assert_eq!(module_base("src/widget.rs", false), Path::new("src/widget"));
         assert_eq!(
             normalize(Path::new("crates/foo/../tests/check.rs")).unwrap(),
             "crates/tests/check.rs"
