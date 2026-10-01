@@ -33,3 +33,28 @@ By default, output is written to `report.json` and `report.html`. Open the HTML 
 Use `--output` and `--html` to choose output paths, and `--threads` to limit workers.
 
 The dashboard includes global line toggles, percentages, compact mode, time axes and a month-range slider. View settings persist across reloads.
+
+## Clone top Rust repositories
+
+From this checkout, with Git, `gh`, `jq` and `xargs` installed:
+
+```sh
+gh auth login
+./clone-rust-repos.sh --jobs 4
+```
+
+Clones the top 1,000 public, non-fork Rust repositories by stars into ignored `data/OWNER/REPO` directories. Bare clones preserve full default-branch history without checkouts. Existing clones are skipped on reruns. Rankings are cached in `data/repositories.json`, delete that file to refetch them. Git clone progress is shown.
+
+Use `--limit 100` for a smaller batch. Full histories can require substantial disk space.
+
+## Generate reports for downloaded repositories
+
+After cloning finishes:
+
+```sh
+./generate-reports.sh --workers 8 --stops 50
+```
+
+Always uses `--all` and writes `report.html` and `report.json` for each repository under `reports/REPO` or `reports/OWNER/REPO`, matching the layout in `data/`.
+
+The script builds Coogles once in release mode. Use `--binary coogles` to use an installed binary instead. Workers are concurrent repositories, with one Rust thread per worker by default. Use `--threads N` to change that.
