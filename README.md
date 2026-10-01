@@ -38,11 +38,21 @@ To scan the entire available first-parent history:
 cargo run --release -- /path/to/repository --all --stops 30
 ```
 
+To include multiple repositories in one report:
+
+```sh
+coogles /path/to/freya /path/to/dioxus --all --stops 25
+```
+
+All paths share the sampling options. Each repository gets its own graph and table, with a clickable list at the top to jump to its section. The X axis, percentage mode, compact mode and line checkboxes are global and update all plots. Controls sit in a fixed left sidebar on desktop and above the plots on smaller screens. Compact mode roughly halves graph height while keeping labels readable. Hide commit tables toggles all tables together. Hide points makes circle markers invisible while preserving hover values. All view settings are saved in browser storage. Manual month ranges are clamped to the available dates when reopening a report, while saved presets follow the latest report month. Single-repository JSON keeps the original schema. Multiple-repository JSON uses schema version 2 with a `repositories` array of individual reports.
+
 `--all` replaces `--commits`, not the traversal mode. It does not include side-branch commits separately. Use `--all --step 10` to sample every ten commits instead.
 
 Stops are evenly distributed using integer commit offsets, including HEAD and the requested depth or available history boundary. For example, `--all --stops 25` includes the latest and oldest commits with 23 samples between them. A single requested stop samples HEAD only. `--stops` and `--step` are mutually exclusive. `--threads N` limits Rayon workers.
 
-Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, commit/count tooltips, a data table and a JSON download button. Use the X axis selector to switch between commit distance and time. Time mode sorts samples by committer timestamp and spaces them by elapsed time, with UTC gridlines every two weeks. Date labels are thinned for long histories to avoid overlap. This repositions the existing sampled snapshots, it does not collect new fortnightly samples. Commit dates also appear in the tooltips.
+Open the generated HTML directly in your browser. It embeds the JSON, provides six selectable curves, point-value tooltips, a data table and a JSON download button. Use the X axis selector to switch between commit distance and time. Time mode sorts samples by committer timestamp and spaces them by elapsed time, with UTC gridlines every one, two or four weeks, selected in the dropdown. Date labels are thinned for long histories to avoid overlap. This repositions the existing sampled snapshots, it does not collect new time-based samples. Hover or focus a point to see its metric label, value and UTC commit date. The two-handle date-range slider filters all plots and tables to inclusive start/end UTC calendar months. Repositories without sampled commits in that range show an empty-state message. Horizontal preset buttons select the last 2, 6 or 12 calendar months, the last 2 years, or all time, anchored to the latest month in the report.
+
+Enable Percentage mode to divide each metric by that snapshot's total code LOC. Total code becomes 100%, and the plot, tooltips and table show relative values. Raw counts remain available in the JSON. Hiding total code does not change the denominator. Categories overlap and do not sum to 100%. Comments and docs can exceed 100% because they are excluded from code LOC. Snapshots with no code show N/A rather than dividing by zero.
 
 History follows the first parent at merges. GitHub's total commit count includes merged branches, so it can exceed this history length. If the requested depth exceeds available history, the CLI warns and redistributes stops over the available history. The JSON records requested and actual depths and whether history was truncated. A shallow boundary is detected and reported separately. If there are fewer available offsets than requested stops, the stop count is reduced. A repository with only HEAD produces one stop at offset zero. Bare repositories are supported. Dirty working-tree changes are not included or modified.
 
@@ -64,7 +74,7 @@ Historical `Cargo.toml` files are read to locate explicit `[[test]]` and `[[exam
 
 This is source analysis, not compiler-expanded analysis. Macros are not expanded. Arbitrary custom test attributes, `cfg_attr`, feature-only test configurations, conditional module paths, `include!` and unusual inline-module `#[path]` layouts are not fully resolved. Simple test predicates and `all`/`any` combinations that require `test` are recognized. Source shared between production and test module graphs may be classified as test code.
 
-Parser failures retain lexical counts but may omit inline tests and module relationships. Each snapshot lists `parse_errors`, and both the CLI and HTML show a warning. Non-UTF-8 source or paths, invalid Cargo manifests and unsupported target paths produce explicit errors.
+Parser failures retain lexical counts but may omit inline tests and module relationships. Each snapshot lists `parse_errors`, and both the CLI and HTML show a warning. Malformed Cargo manifests are recorded in each snapshot's `manifest_errors` and do not abort analysis. Custom test/example targets from those manifests may be missing, while lexical counts and path-based classification continue. Non-UTF-8 Rust source or paths and unsupported target paths produce explicit errors.
 
 ## Performance
 

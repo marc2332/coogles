@@ -22,8 +22,9 @@ use std::{
     about = "Plot Rust source metrics across first-parent Git history"
 )]
 struct Arguments {
-    /// Repository path, including bare repositories
-    repository: PathBuf,
+    /// One or more repository paths, including bare repositories
+    #[arg(required = true, num_args = 1..)]
+    repositories: Vec<PathBuf>,
     /// Walk this many first-parent edges back from HEAD
     #[arg(long, default_value_t = 300, conflicts_with = "all")]
     commits: usize,
@@ -68,6 +69,33 @@ struct Report {
     analyzed_bytes: u64,
     elapsed_seconds: f64,
     snapshots: Vec<Snapshot>,
+}
+
+#[derive(Serialize)]
+struct MultiReport<'report> {
+    schema_version: u32,
+    repositories: &'report [Report],
+}
+
+struct ManifestAnalysis {
+    value: Option<toml::Value>,
+    error: Option<String>,
+}
+
+fn analyze_manifest(source: &[u8]) -> ManifestAnalysis {
+    let parsed = std::str::from_utf8(source)
+        .context("Cargo.toml is not UTF-8")
+        .and_then(|source| toml::from_str(source).context("parsing Cargo.toml"));
+    match parsed {
+        Ok(value) => ManifestAnalysis {
+            value: Some(value),
+            error: None,
+        },
+        Err(error) => ManifestAnalysis {
+            value: None,
+            error: Some(format!("{error:#}")),
+        },
+    }
 }
 
 #[derive(Clone)]
@@ -204,12 +232,15 @@ fn module_base(path: &str) -> PathBuf {
 
 fn custom_targets(
     stop: &Stop,
-    manifests: &HashMap<gix::ObjectId, toml::Value>,
+    manifests: &HashMap<gix::ObjectId, ManifestAnalysis>,
 ) -> Result<(HashSet<String>, HashSet<String>)> {
     let mut tests = HashSet::new();
     let mut examples = HashSet::new();
     for file in &stop.files {
-        let Some(manifest) = manifests.get(&file.object_id) else {
+        let Some(manifest) = manifests
+            .get(&file.object_id)
+            .and_then(|manifest| manifest.value.as_ref())
+        else {
             continue;
         };
         let parent = Path::new(&file.path)
@@ -239,7 +270,7 @@ fn target_files(targets: &HashSet<String>, files: &[FileEntry]) -> HashSet<Strin
 fn aggregate(
     stop: &Stop,
     analyses: &HashMap<gix::ObjectId, Analysis>,
-    manifests: &HashMap<gix::ObjectId, toml::Value>,
+    manifests: &HashMap<gix::ObjectId, ManifestAnalysis>,
 ) -> Result<Snapshot> {
     let (tests, examples) = custom_targets(stop, manifests)?;
     let mut test_files = target_files(&tests, &stop.files);
@@ -320,12 +351,24 @@ fn aggregate(
     }
     metrics.doc_loc = metrics.inner_doc_loc + metrics.outer_doc_loc;
     parse_errors.sort();
+    let mut manifest_errors: Vec<_> = stop
+        .files
+        .iter()
+        .filter_map(|file| {
+            manifests
+                .get(&file.object_id)
+                .and_then(|manifest| manifest.error.as_ref())
+                .map(|error| format!("{}: {error}", file.path))
+        })
+        .collect();
+    manifest_errors.sort();
     Ok(Snapshot {
         commit: stop.commit.clone(),
         offset: stop.offset,
         timestamp: stop.timestamp,
         metrics,
         parse_errors,
+        manifest_errors,
     })
 }
 
@@ -357,8 +400,35 @@ fn main() -> Result<()> {
             .num_threads(threads)
             .build_global()?;
     }
+    let reports = arguments
+        .repositories
+        .iter()
+        .map(|path| {
+            analyze_repository(path, &arguments)
+                .with_context(|| format!("analyzing {}", path.display()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let json = if reports.len() == 1 {
+        serde_json::to_string_pretty(&reports[0])?
+    } else {
+        serde_json::to_string_pretty(&MultiReport {
+            schema_version: 2,
+            repositories: &reports,
+        })?
+    };
+    write_output(&arguments.output, json.as_bytes())?;
+    write_output(&arguments.html, report::html(&json).as_bytes())?;
+    println!(
+        "JSON: {}\nHTML: {}",
+        arguments.output.display(),
+        arguments.html.display()
+    );
+    Ok(())
+}
+
+fn analyze_repository(path: &Path, arguments: &Arguments) -> Result<Report> {
     let started = Instant::now();
-    let repository = gix::discover(&arguments.repository).context("opening Git repository")?;
+    let repository = gix::discover(path).context("opening Git repository")?;
     let head = repository.head_commit()?.id;
     let requested_commits = (!arguments.all).then_some(arguments.commits);
     let (history, shallow_boundary) = collect_history(&repository, head, requested_commits)?;
@@ -409,12 +479,7 @@ fn main() -> Result<()> {
     let mut manifests = HashMap::new();
     for object_id in manifest_ids {
         let blob = repository.find_blob(object_id)?;
-        let source = std::str::from_utf8(&blob.data)?;
-        manifests.insert(
-            object_id,
-            toml::from_str::<toml::Value>(source)
-                .with_context(|| format!("parsing historical Cargo.toml blob {object_id}"))?,
-        );
+        manifests.insert(object_id, analyze_manifest(&blob.data));
     }
     let shared = repository.into_sync();
     let rust_ids: Vec<_> = rust_ids.into_iter().collect();
@@ -445,7 +510,7 @@ fn main() -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
     let report = Report {
         schema_version: 1,
-        repository: arguments.repository.canonicalize()?.display().to_string(),
+        repository: path.canonicalize()?.display().to_string(),
         head: head.to_string(),
         configuration: Configuration {
             commits,
@@ -463,16 +528,12 @@ fn main() -> Result<()> {
         elapsed_seconds: started.elapsed().as_secs_f64(),
         snapshots,
     };
-    let json = serde_json::to_string_pretty(&report)?;
-    write_output(&arguments.output, json.as_bytes())?;
-    write_output(&arguments.html, report::html(&json).as_bytes())?;
     println!(
-        "{} stops, {} unique Rust blobs, {:.2} seconds\nJSON: {}\nHTML: {}",
+        "{}: {} stops, {} unique Rust blobs, {:.2} seconds",
+        path.display(),
         report.snapshots.len(),
         report.unique_rust_blobs,
         report.elapsed_seconds,
-        arguments.output.display(),
-        arguments.html.display()
     );
     let failures: usize = report
         .snapshots
@@ -480,16 +541,30 @@ fn main() -> Result<()> {
         .map(|snapshot| snapshot.parse_errors.len())
         .sum();
     if failures > 0 {
-        eprintln!("Warning: {failures} file/snapshot parse failures, see parse_errors in JSON");
+        eprintln!(
+            "Warning: {}: {failures} file/snapshot parse failures, see parse_errors in JSON",
+            path.display()
+        );
     }
-    Ok(())
+    let manifest_failures: usize = report
+        .snapshots
+        .iter()
+        .map(|snapshot| snapshot.manifest_errors.len())
+        .sum();
+    if manifest_failures > 0 {
+        eprintln!(
+            "Warning: {}: {manifest_failures} file/snapshot manifest parse failures. Custom target paths may be incomplete, see manifest_errors in JSON",
+            path.display()
+        );
+    }
+    Ok(report)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        Arguments, FileEntry, Stop, aggregate, analysis::analyze, history_offsets, module_base,
-        normalize, offsets,
+        Arguments, FileEntry, Stop, aggregate, analysis::analyze, analyze_manifest,
+        history_offsets, module_base, normalize, offsets,
     };
     use clap::Parser;
     use std::{collections::HashMap, path::Path};
@@ -522,6 +597,20 @@ mod tests {
         );
         assert_eq!(history_offsets(3, 10, Some(10)).unwrap(), vec![0, 1, 2, 3]);
         assert_eq!(history_offsets(0, 10, Some(10)).unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn accepts_multiple_repositories_with_shared_sampling_options() {
+        let arguments =
+            Arguments::try_parse_from(["coogles", "freya", "dioxus", "--all", "--stops", "25"])
+                .unwrap();
+        assert_eq!(
+            arguments.repositories,
+            vec![Path::new("freya"), Path::new("dioxus")]
+        );
+        assert!(arguments.all);
+        assert_eq!(arguments.stops, Some(25));
+        assert!(Arguments::try_parse_from(["coogles", "--all"]).is_err());
     }
 
     #[test]
@@ -574,7 +663,7 @@ mod tests {
             path: "Cargo.toml".to_owned(),
             object_id: manifest_id,
         });
-        let manifest = toml::from_str::<toml::Value>("[package]\nname = 'fixture'\nversion = '0.1.0'\n[[test]]\nname = 'check'\npath = 'qa/check.rs'\n[[example]]\nname = 'demo'\npath = 'demo/start.rs'\n").unwrap();
+        let manifest = analyze_manifest(b"[package]\nname = 'fixture'\nversion = '0.1.0'\n[[test]]\nname = 'check'\npath = 'qa/check.rs'\n[[example]]\nname = 'demo'\npath = 'demo/start.rs'\n");
         let manifests = HashMap::from([(manifest_id, manifest)]);
         let stop = Stop {
             offset: 10,
@@ -589,6 +678,40 @@ mod tests {
         assert_eq!(snapshot.metrics.code_loc, 14);
         assert_eq!(snapshot.metrics.rust_files, 8);
         assert!(snapshot.parse_errors.is_empty());
+    }
+
+    #[test]
+    fn malformed_manifests_preserve_metrics_and_report_errors() {
+        let rust_id = gix::ObjectId::from_hex(b"0000000000000000000000000000000000000001").unwrap();
+        let manifest_id =
+            gix::ObjectId::from_hex(b"0000000000000000000000000000000000000002").unwrap();
+        let invalid = analyze_manifest(b"[features]\ndox = ['wry/dox']\ndox = ['wry/dox']\n");
+        assert!(invalid.value.is_none());
+        assert!(invalid.error.as_ref().unwrap().contains("duplicate key"));
+        let manifests = HashMap::from([(manifest_id, invalid)]);
+        let analyses = HashMap::from([(rust_id, analyze("#[test]\nfn check() {}\n"))]);
+        let stop = Stop {
+            offset: 0,
+            commit: "fixture".to_owned(),
+            timestamp: 0,
+            files: vec![
+                FileEntry {
+                    path: "Cargo.toml".to_owned(),
+                    object_id: manifest_id,
+                },
+                FileEntry {
+                    path: "tests/check.rs".to_owned(),
+                    object_id: rust_id,
+                },
+            ],
+        };
+        let snapshot = aggregate(&stop, &analyses, &manifests).unwrap();
+        assert_eq!(snapshot.metrics.code_loc, 2);
+        assert_eq!(snapshot.metrics.test_code_loc, 2);
+        assert_eq!(snapshot.manifest_errors.len(), 1);
+        assert!(snapshot.manifest_errors[0].starts_with("Cargo.toml:"));
+        assert!(snapshot.parse_errors.is_empty());
+        assert!(analyze_manifest(&[0xff]).error.is_some());
     }
 
     #[test]

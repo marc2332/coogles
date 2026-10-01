@@ -22,6 +22,7 @@ pub struct Snapshot {
     pub timestamp: i64,
     pub metrics: Metrics,
     pub parse_errors: Vec<String>,
+    pub manifest_errors: Vec<String>,
 }
 
 pub fn html(json: &str) -> String {
